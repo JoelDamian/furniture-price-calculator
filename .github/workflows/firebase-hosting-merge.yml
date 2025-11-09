@@ -11,11 +11,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npm run build
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{
-            secrets.FIREBASE_SERVICE_ACCOUNT_FURNITURE_COST_CALCULATO_D815D }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FURNITURE_COST_CALCULATO_D815D }}
           channelId: live
           projectId: furniture-cost-calculato-d815d
