@@ -9,12 +9,7 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'             # asegúrate de la versión que usas
+      - uses: actions/checkout@v4         # asegúrate de la versión que usas
 
       - name: Install dependencies
         run: npm ci                       # instala dependencias
