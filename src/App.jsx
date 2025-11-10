@@ -12,6 +12,12 @@ function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const login = useAuthStore((state) => state.login);
 
+  const restoreSession = useAuthStore((state) => state.restoreSession);
+
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
+
 
   useEffect(() => {
     const session = sessionStorage.getItem('isAuthenticated');
