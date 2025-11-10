@@ -1,5 +1,5 @@
 // MelaminaMaterialsPage.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   TextField,
@@ -19,15 +19,8 @@ import {
   DialogActions
 } from '@mui/material';
 import { useMaterialStore } from '../store/materialStore';
-
-interface MaterialItem {
-  id: string;
-  precioHoja: number;
-  med1: number;
-  med2: number;
-  material: string;
-  precioM2: number;
-}
+import { MaterialItem } from '../models/Interfaces';
+import { saveMaterial, fetchMaterials, updateMaterialInFirestore } from '../services/materialService';
 
 export const MelaminaMaterialsPage: React.FC = () => {
   const [form, setForm] = useState<Omit<MaterialItem, 'precioM2'>>({
@@ -52,6 +45,19 @@ export const MelaminaMaterialsPage: React.FC = () => {
   const materiales = useMaterialStore((state) => state.materiales);
   const addMaterial = useMaterialStore((state) => state.addMaterial);
   const updateMaterial = useMaterialStore((state) => state.updateMaterial);
+  const setMateriales = useMaterialStore((state) => state.setMateriales);
+
+   useEffect(() => {
+    const loadMaterials = async () => {
+      try {
+        const loaded = await fetchMaterials();
+        setMateriales(loaded);
+      } catch (error) {
+        console.error("Error cargando materiales:", error);
+      }
+    };
+    loadMaterials();
+  }, [setMateriales]);
 
   const calculatePrecioM2 = (precioHoja: number, med1: number, med2: number): number => {
     const area = med1 * med2;
@@ -66,7 +72,7 @@ export const MelaminaMaterialsPage: React.FC = () => {
     });
   };
 
-    const handleChangeModel = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChangeModel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setMaterial({
       ...material,
@@ -74,11 +80,22 @@ export const MelaminaMaterialsPage: React.FC = () => {
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const precioM2 = calculatePrecioM2(form.precioHoja, form.med1, form.med2);
     const nuevo = { ...form, precioM2 };
-    addMaterial(nuevo);
-    setForm({ precioHoja: 0, med1: 0, med2: 0, material: '', id: '' });
+
+    try {
+      // Guarda en Firestore (sin id)
+      const generatedId = await saveMaterial(nuevo);
+
+      // Luego, guarda en el store local (incluyendo el id generado)
+      addMaterial({ ...nuevo, id: generatedId });
+
+      // Resetea el formulario
+      setForm({ precioHoja: 0, med1: 0, med2: 0, material: '', id: '' });
+    } catch (error) {
+      console.error('Error al guardar el material:', error);
+    }
   };
 
   const handleRowClick = (id: string) => {
@@ -95,15 +112,28 @@ export const MelaminaMaterialsPage: React.FC = () => {
     setEditOpen(true);
   };
 
-  const handleUpdate = () => {
-    if (editIndex === null) return;
-    const precioM2 = calculatePrecioM2(material.precioHoja, material.med1, material.med2);
-    const actualizado = { ...material, precioM2 };
+  const handleUpdate = async () => {
+  if (editIndex === null) return;
+
+  const precioM2 = calculatePrecioM2(material.precioHoja, material.med1, material.med2);
+  const actualizado = {
+    precioHoja: material.precioHoja,
+    med1: material.med1,
+    med2: material.med2,
+    material: material.material,
+    precioM2
+  };
+
+  try {
+    await updateMaterialInFirestore(editIndex, actualizado);
     updateMaterial(editIndex, actualizado);
     setEditOpen(false);
     setEditIndex(null);
     setForm({ precioHoja: 0, med1: 0, med2: 0, material: '', id: '' });
-  };
+  } catch (error) {
+    console.error("Error actualizando material en Firestore:", error);
+  }
+};
 
   const handleCancelEdit = () => {
     setEditOpen(false);

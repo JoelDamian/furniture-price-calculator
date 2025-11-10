@@ -1,4 +1,11 @@
-
+export interface MaterialItem {
+  id: string;
+  precioHoja: number;
+  med1: number;
+  med2: number;
+  material: string;
+  precioM2: number;
+}
 export interface Accessory {
   id: string;
   cantidad: number;
@@ -8,18 +15,18 @@ export interface Accessory {
 }
 
 export interface EstanteItem {
-    id: string;
-    cantidad: number;
-    pieza: string;
-    material: string;
-    ancho: number;
-    largo: number;
-    precioM2: number;
-    precioUnitario: number;
-    precioTotal: number;
-    atc?: number;
-    ltc?: number;
-    tc?: number;
+  id: string;
+  cantidad: number;
+  pieza: string;
+  material: string;
+  ancho: number;
+  largo: number;
+  precioM2: number;
+  precioUnitario: number;
+  precioTotal: number;
+  atc?: number;
+  ltc?: number;
+  tc?: number;
 }
 
 export interface Cotizacion {
