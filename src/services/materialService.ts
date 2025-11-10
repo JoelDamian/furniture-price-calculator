@@ -25,6 +25,6 @@ export const fetchMaterials = async (): Promise<MaterialItem[]> => {
 };
 
 export const updateMaterialInFirestore = async (id: string, data: Omit<MaterialItem, 'id'>) => {
-  const materialRef = doc(db, "materiales", id);
+  const materialRef = doc(db, "material", id);
   await updateDoc(materialRef, data);
 };

@@ -11,7 +11,6 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Button
 } from '@mui/material';
 import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
@@ -20,34 +19,38 @@ import { useCotizacionGlobalStore } from '../store/finalCotizacion';
 export const CotizacionPreview: React.FC = () => {
   const { items: piezas } = useCotizacionStore();
   const { items: accesorios } = useAccessoryStore();
+  const { setCotizacion } = useCotizacionGlobalStore();
+
   const [manoDeObra, setManoDeObra] = useState(0);
   const [nombre, setNombre] = useState('');
   const [total, setTotal] = useState(0);
   const [precioVenta, setPrecioVenta] = useState(0);
   const [precioVentaConIva, setPrecioVentaConIva] = useState(0);
-  const { setCotizacion } = useCotizacionGlobalStore();
 
   useEffect(() => {
     const totalEstantes = piezas.reduce((acc, item) => acc + item.precioTotal, 0);
     const totalAccesorios = accesorios.reduce((acc, item) => acc + item.precioTotal, 0);
-    const newTotal = totalEstantes + totalAccesorios + manoDeObra;
+    const newTotal = totalEstantes + totalAccesorios;
     const precioDeVenta = newTotal * 2;
-    const mO = precioDeVenta - (totalEstantes + totalAccesorios);
+    const precioConIva = newTotal * 2.5;
+    const calculoManoObra = precioDeVenta - newTotal;
+
     setTotal(newTotal);
     setPrecioVenta(precioDeVenta);
-    setPrecioVentaConIva(newTotal * 2.5);
-    setManoDeObra(mO);
+    setPrecioVentaConIva(precioConIva);
+    setManoDeObra(calculoManoObra);
+
     setCotizacion({
       id: '',
-      nombre: '',
-      piezas: piezas,
+      nombre,
+      piezas,
       accesorios,
-      manoDeObra: manoDeObra,
+      manoDeObra: calculoManoObra,
       total: newTotal,
-      precioVenta,
-      precioVentaConIva,
+      precioVenta: precioDeVenta,
+      precioVentaConIva: precioConIva,
     });
-  }, [piezas, accesorios, manoDeObra]);
+  }, [piezas, accesorios, nombre, manoDeObra, setCotizacion]);
 
   return (
     <Container sx={{ py: 4 }}>
@@ -63,6 +66,7 @@ export const CotizacionPreview: React.FC = () => {
           />
         </Grid>
       </Grid>
+
       <Typography variant="h6">Piezas</Typography>
       <TableContainer component={Paper} sx={{ mb: 3 }}>
         <Table>
@@ -118,7 +122,6 @@ export const CotizacionPreview: React.FC = () => {
           </TableBody>
         </Table>
       </TableContainer>
-
 
       <Typography variant="h6">Totales</Typography>
       <Grid container spacing={2}>

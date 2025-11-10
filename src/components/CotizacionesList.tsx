@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Container,
     Typography,
@@ -12,9 +12,20 @@ import {
     Button,
 } from '@mui/material';
 import { Cotizacion } from '../models/Interfaces';
+import { fetchCotizaciones } from '../services/cotizacionService';
 
 export const CotizacionesList: React.FC = () => {
-    const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
+    const [cotizaciones, setCotizaciones] = useState<Cotizacion[] | undefined>([]);
+
+    useEffect(() => {
+        const loadCotizaciones = async () => {
+            const datos = await fetchCotizaciones();
+            setCotizaciones(datos);
+        };
+
+        loadCotizaciones();
+    }, []);
+
     return (
         <Container sx={{ py: 4 }}>
             <Typography variant="h4" gutterBottom>Lista de Cotizaciones</Typography>

@@ -14,8 +14,7 @@ const steps = ['Piezas', 'Agregar Accesorios', 'Previsualización'];
 export const CotizacionStepper: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const navigate = useNavigate();
-  const cotizacion = useCotizacionGlobalStore.getState().cotizacion;
-
+  const cotizacion = useCotizacionGlobalStore((state) => state.cotizacion);
   const resetPiezas = useCotizacionStore((state) => state.clearItems);
   const resetAccesorios = useAccessoryStore((state) => state.clearItems);
   const resetGlobal = useCotizacionGlobalStore((state) => state.resetCotizacion);
@@ -44,9 +43,9 @@ export const CotizacionStepper: React.FC = () => {
 
   const handleSave = async () => {
     try {
+      console.log("Guardando cotización:", cotizacion);
       const id = await saveCotizacion(cotizacion);
       console.log("Cotización guardada con ID:", id);
-      // Limpia los stores
       resetPiezas();
       resetAccesorios();
       resetGlobal();
