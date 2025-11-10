@@ -7,17 +7,19 @@ import { useNavigate } from 'react-router-dom';
 import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
-
+import { saveCotizacion } from "../services/cotizacionService";
 
 const steps = ['Piezas', 'Agregar Accesorios', 'Previsualización'];
 
 export const CotizacionStepper: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const navigate = useNavigate();
+  const cotizacion = useCotizacionGlobalStore.getState().cotizacion;
 
   const resetPiezas = useCotizacionStore((state) => state.clearItems);
   const resetAccesorios = useAccessoryStore((state) => state.clearItems);
   const resetGlobal = useCotizacionGlobalStore((state) => state.resetCotizacion);
+
 
   const handleNext = () => {
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -40,13 +42,19 @@ export const CotizacionStepper: React.FC = () => {
     }
   };
 
-  const handleSave = () => {
-    // Limpia los stores
-    resetPiezas();
-    resetAccesorios();
-    resetGlobal();
-    // Redirige
-    navigate('/lista-cotizaciones');
+  const handleSave = async () => {
+    try {
+      const id = await saveCotizacion(cotizacion);
+      console.log("Cotización guardada con ID:", id);
+      // Limpia los stores
+      resetPiezas();
+      resetAccesorios();
+      resetGlobal();
+      // Redirige
+      navigate('/lista-cotizaciones');
+    } catch (err) {
+      console.error("No se pudo guardar la cotización", err);
+    }
   };
   return (
     <Box sx={{ width: '100%', p: 4 }}>
