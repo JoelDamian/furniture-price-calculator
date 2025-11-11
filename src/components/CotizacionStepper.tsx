@@ -8,6 +8,7 @@ import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
 import { saveCotizacion } from "../services/cotizacionService";
+import { Accessory } from '../models/Interfaces';
 
 const steps = ['Piezas', 'Agregar Accesorios', 'Previsualización'];
 
@@ -15,12 +16,29 @@ export const CotizacionStepper: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const navigate = useNavigate();
   const cotizacion = useCotizacionGlobalStore((state) => state.cotizacion);
+  const piezas = useCotizacionStore((state) => state.items);
   const resetPiezas = useCotizacionStore((state) => state.clearItems);
   const resetAccesorios = useAccessoryStore((state) => state.clearItems);
   const resetGlobal = useCotizacionGlobalStore((state) => state.resetCotizacion);
+  const { items, addItem, updateItem } = useAccessoryStore();
 
 
   const handleNext = () => {
+    const totalTC = piezas.reduce((sum, item) => sum + (item.tc || 0), 0);
+    const foundTC = items.find(acc => acc.id === '1');
+    if (foundTC) {
+      let newAccesorio = { ...foundTC, cantidad: totalTC, precioTotal: totalTC * foundTC.precioUnitario };
+      updateItem(newAccesorio.id, newAccesorio);
+    } else {
+      const nuevoAccesorio: Accessory = {
+        id: '1',
+        cantidad: totalTC,
+        nombre: 'Tapacanto',
+        precioUnitario: 3,
+        precioTotal: totalTC * 3
+      }
+      addItem(nuevoAccesorio);
+    }
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
   };
 

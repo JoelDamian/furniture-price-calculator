@@ -143,6 +143,7 @@ export const FormCotizacion: React.FC = () => {
         const tc = calcularTC(form.cantidad, form.ancho, form.largo, form.atc || 0, form.ltc || 0);
         const nuevoItem: EstanteItem = {
             ...form,
+            id: crypto.randomUUID(),
             precioUnitario,
             precioTotal,
             tc: tc

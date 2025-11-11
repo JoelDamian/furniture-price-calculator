@@ -21,7 +21,6 @@ import {
 import { useAccessoryStore } from '../store/accessoryStore';
 import { Accessory } from '../models/Interfaces';
 
-
 export const AccessorysPage: React.FC = () => {
     const [form, setForm] = useState<Omit<Accessory, 'precioTotal'>>({
         id: '',
@@ -52,7 +51,7 @@ export const AccessorysPage: React.FC = () => {
         const precioTotal = form.cantidad * form.precioUnitario;
         const nuevo: Accessory = { ...form, precioTotal };
         addItem(nuevo);
-        setForm({ cantidad: 0, nombre: '', precioUnitario: 0, id: '' });
+        setForm({ cantidad: 0, nombre: '', precioUnitario: 0, id: crypto.randomUUID() });
     };
 
     const handleRowClick = (id: string) => {
