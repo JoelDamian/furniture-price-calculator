@@ -24,7 +24,7 @@ interface CotizacionPreviewProps {
 }
 
 export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit }) => {
-  const { items: piezas } = useCotizacionStore();
+  const { items: piezas, dimensiones } = useCotizacionStore();
   const { items: accesorios } = useAccessoryStore();
   const { cotizacion, setCotizacion } = useCotizacionGlobalStore();
 
@@ -39,9 +39,9 @@ export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit }) 
     const totalEstantes = piezas.reduce((acc, item) => acc + item.precioTotal, 0);
     const totalAccesorios = accesorios.reduce((acc, item) => acc + item.precioTotal, 0);
     const newTotal = totalEstantes + totalAccesorios;
-    const precioDeVenta = newTotal * 2;
     const precioConIva = newTotal * 2.5;
-    const calculoManoObra = precioDeVenta - newTotal;
+    const calculoManoObra = newTotal + (newTotal * 0.05);
+    const precioDeVenta = newTotal + calculoManoObra ;
 
     setTotal(newTotal);
     setPrecioVenta(precioDeVenta);
@@ -57,6 +57,7 @@ export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit }) 
       total: newTotal,
       precioVenta: precioDeVenta,
       precioVentaConIva: precioConIva,
+      dimensiones
     });
   }, [piezas, accesorios, nombre, manoDeObra, setCotizacion, isEdit, cotizacion.id, cotizacion.nombre]);
 

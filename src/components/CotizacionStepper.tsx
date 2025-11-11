@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Stepper, Step, StepLabel, Button, Typography } from '@mui/material';
 import { FormCotizacion } from './FormularioCot';
 import { AccessorysPage } from './Accessories';
@@ -25,7 +25,13 @@ export const CotizacionStepper: React.FC = () => {
   const location = useLocation();
   const { isEdit } = location.state || {};
 
-  console.log("isEdit:", isEdit);
+  useEffect(() => {
+    if (!isEdit) {
+      resetPiezas();
+      resetAccesorios();
+      resetGlobal();
+    }
+  }, [resetPiezas, resetAccesorios, resetGlobal]);
 
 
   const handleNext = () => {
@@ -58,7 +64,7 @@ export const CotizacionStepper: React.FC = () => {
       case 1:
         return <AccessorysPage />;
       case 2:
-        return <CotizacionPreview isEdit={isEdit}/>;
+        return <CotizacionPreview isEdit={isEdit} />;
       default:
         return <Typography>Step desconocido</Typography>;
     }

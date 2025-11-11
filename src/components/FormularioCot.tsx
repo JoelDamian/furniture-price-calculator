@@ -27,12 +27,8 @@ import {
 import { useMaterialStore } from '../store/materialStore';
 import { useCotizacionStore } from '../store/cotizacionStore';
 import { EstanteItem } from '../models/Interfaces';
+import { Dimensiones } from '../models/Interfaces';
 
-interface Dimensiones {
-    ancho: number;
-    alto: number;
-    profundidad: number;
-}
 
 const piezaOptions = [
     'lateral', 'zocalo', 'base', 'fondo', 'puerta',
@@ -47,11 +43,6 @@ export const FormCotizacion: React.FC = () => {
 
     // Estado local para formulario, dimensiones y tipo de mueble
     const [furnitureType, setFurnitureType] = useState<string>('');
-    const [dimensiones, setDimensiones] = useState<Dimensiones>({
-        ancho: 0,
-        alto: 0,
-        profundidad: 0
-    });
     const [form, setForm] = useState<Omit<EstanteItem, 'precioUnitario' | 'precioTotal' | 'tc'>>({
         id: '',
         cantidad: 0,
@@ -67,11 +58,14 @@ export const FormCotizacion: React.FC = () => {
     // Store para la lista y manejo de items
     const {
         items,
+        dimensiones,
         addItem,
-        updateItem
+        updateItem,
+        deleteItem,
+        setDimensiones: setStoreDimensiones
     } = useCotizacionStore();
 
-    const [editIndex, setEditIndex] = useState<number | null>(null);
+    const [editIndex, setEditIndex] = useState<string | null>(null);
     const [editOpen, setEditOpen] = useState<boolean>(false);
 
     // Sincronizar precioM2 desde materiales cuando cambie material
@@ -131,10 +125,12 @@ export const FormCotizacion: React.FC = () => {
 
     const handleDimensionesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setDimensiones((prev) => ({
-            ...prev,
-            [name]: parseFloat(value as string)
-        }));
+        const parsedValue = parseFloat(value as string);
+
+        setStoreDimensiones({
+            ...dimensiones,
+            [name]: parsedValue
+        });
     };
 
     const handleAddItem = () => {
@@ -164,8 +160,9 @@ export const FormCotizacion: React.FC = () => {
         });
     };
 
-    const handleRowClick = (index: number) => {
-        const item = items[index];
+    const handleRowClick = (id: string) => {
+        const item = items.find(i => i.id === id);
+        if (!item) return;
         setForm({
             id: item.id,
             cantidad: item.cantidad,
@@ -177,7 +174,7 @@ export const FormCotizacion: React.FC = () => {
             atc: item.atc || 0,
             ltc: item.ltc || 0
         });
-        setEditIndex(index);
+        setEditIndex(item.id);
         setEditOpen(true);
     };
 
@@ -193,10 +190,14 @@ export const FormCotizacion: React.FC = () => {
             tc: tc
         } as EstanteItem;
 
-        updateItem(items[editIndex].id, updatedItem);
+        updateItem(editIndex, updatedItem);
         setEditOpen(false);
         setEditIndex(null);
     };
+
+    const handleDelete = (id: string) => {
+        deleteItem(id);
+    }
 
     return (
         <Container sx={{ py: 4 }}>
@@ -382,15 +383,13 @@ export const FormCotizacion: React.FC = () => {
                             <TableCell>P/Unitario</TableCell>
                             <TableCell>P/Total</TableCell>
                             <TableCell>TC</TableCell>
+                            <TableCell>Acciones</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {items.map((item, index) => (
+                        {items.map((item) => (
                             <TableRow
                                 key={item.id}
-                                onClick={() => handleRowClick(index)}
-                                hover
-                                sx={{ cursor: 'pointer' }}
                             >
                                 <TableCell>{item.cantidad}</TableCell>
                                 <TableCell>{item.pieza}</TableCell>
@@ -401,6 +400,10 @@ export const FormCotizacion: React.FC = () => {
                                 <TableCell>{item.precioUnitario}</TableCell>
                                 <TableCell>{item.precioTotal}</TableCell>
                                 <TableCell>{item.tc?.toFixed(2)}</TableCell>
+                                <TableCell>
+                                    <Button onClick={() => handleRowClick(item.id)}>Editar</Button>
+                                    <Button color="error" onClick={() => handleDelete(item.id)}>Eliminar</Button>
+                                </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>

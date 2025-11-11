@@ -1,18 +1,21 @@
 // cotizacionStore.ts
 import { create } from 'zustand';
 import { EstanteItem } from '../models/Interfaces';
-
+import { Dimensiones } from '../models/Interfaces';
 interface CotizacionState {
     items: EstanteItem[];
+    dimensiones: Dimensiones;
     addItem: (item: Omit<EstanteItem, 'precioTotal' | 'precioUnitario' | 'tc'>) => void;
     updateItem: (id: string, updated: Omit<EstanteItem, 'precioTotal' | 'precioUnitario' | 'tc'>) => void;
     deleteItem: (id: string) => void;
     clearItems: () => void;
     addListItem: (items: EstanteItem[]) => void;
+    setDimensiones: (dimensiones: Dimensiones) => void;
 }
 
 export const useCotizacionStore = create<CotizacionState>((set) => ({
     items: [],
+    dimensiones: { ancho: 0, alto: 0, profundidad: 0 },
     addItem: (item) =>
         set((state) => {
             const precioUnitario = parseFloat((item.ancho * item.largo * item.precioM2).toFixed(2));
@@ -44,7 +47,8 @@ export const useCotizacionStore = create<CotizacionState>((set) => ({
         set((state) => ({
             items: state.items.filter((item) => item.id !== id),
         })),
-    clearItems: () => set({ items: [] }),
+    clearItems: () => set({ items: [], dimensiones: { ancho: 0, alto: 0, profundidad: 0 } }),
     addListItem: (items) =>
         set({ items: [...items] }),
+    setDimensiones: (dimensiones) => set({ dimensiones }),
 }));

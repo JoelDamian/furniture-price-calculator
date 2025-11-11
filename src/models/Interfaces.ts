@@ -38,8 +38,11 @@ export interface Cotizacion {
   total: number; // calculado
   precioVenta: number; // total * 2
   precioVentaConIva: number; // total * 2.5
+  dimensiones: Dimensiones;
 }
 
-
-
-
+export interface Dimensiones {
+    ancho: number;
+    alto: number;
+    profundidad: number;
+}
