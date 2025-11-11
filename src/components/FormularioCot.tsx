@@ -274,32 +274,37 @@ export const FormCotizacion: React.FC = () => {
                     />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                    <Autocomplete
-                        freeSolo
-                        options={piezaOptions}
-                        value={form.pieza}
-                        onInputChange={(_, newValue) =>
-                            setForm((prev) => ({ ...prev, pieza: newValue }))
-                        }
-                        renderInput={(params) => (
-                            <TextField {...params} label="Pieza" fullWidth />
-                        )}
-                    />
+                    <Box width={192}>
+                        <Autocomplete
+                            freeSolo
+                            options={piezaOptions}
+                            value={form.pieza}
+                            onInputChange={(_, newValue) =>
+                                setForm((prev) => ({ ...prev, pieza: newValue }))
+                            }
+                            renderInput={(params) => (
+                                <TextField {...params} label="Pieza" fullWidth />
+                            )}
+                        />
+                    </Box>
+
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                    <FormControl fullWidth>
-                        <InputLabel>Material</InputLabel>
-                        <Select
-                            name="material"
-                            value={form.material}
-                            label="Material"
-                            onChange={handleChange}
-                        >
-                            {materiales.map((mat, i) => (
-                                <MenuItem key={i} value={mat.material}>{mat.material}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
+                    <Box width={192}>
+                        <FormControl fullWidth>
+                            <InputLabel>Material</InputLabel>
+                            <Select
+                                name="material"
+                                value={form.material}
+                                label="Material"
+                                onChange={handleChange}
+                            >
+                                {materiales.map((mat, i) => (
+                                    <MenuItem key={i} value={mat.material}>{mat.material}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Box>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                     <TextField
