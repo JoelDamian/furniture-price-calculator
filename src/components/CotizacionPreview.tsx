@@ -16,13 +16,17 @@ import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
 
-export const CotizacionPreview: React.FC = () => {
+interface CotizacionPreviewProps {
+  isEdit?: boolean;
+}
+
+export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit })  => {
   const { items: piezas } = useCotizacionStore();
   const { items: accesorios } = useAccessoryStore();
-  const { setCotizacion } = useCotizacionGlobalStore();
+  const { cotizacion, setCotizacion } = useCotizacionGlobalStore();
 
   const [manoDeObra, setManoDeObra] = useState(0);
-  const [nombre, setNombre] = useState('');
+  const [nombre, setNombre] = useState(isEdit ? cotizacion.nombre : '' );
   const [total, setTotal] = useState(0);
   const [precioVenta, setPrecioVenta] = useState(0);
   const [precioVentaConIva, setPrecioVentaConIva] = useState(0);
@@ -41,7 +45,7 @@ export const CotizacionPreview: React.FC = () => {
     setManoDeObra(calculoManoObra);
 
     setCotizacion({
-      id: '',
+      id: isEdit && cotizacion.id ? cotizacion.id : '',
       nombre,
       piezas,
       accesorios,
@@ -50,7 +54,7 @@ export const CotizacionPreview: React.FC = () => {
       precioVenta: precioDeVenta,
       precioVentaConIva: precioConIva,
     });
-  }, [piezas, accesorios, nombre, manoDeObra, setCotizacion]);
+  }, [piezas, accesorios, nombre, manoDeObra, setCotizacion, isEdit, cotizacion.id, cotizacion.nombre]);
 
   return (
     <Container sx={{ py: 4 }}>

@@ -7,8 +7,9 @@ import { useNavigate } from 'react-router-dom';
 import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
-import { saveCotizacion } from "../services/cotizacionService";
+import { saveCotizacion, updateCotizacionInFirestore } from "../services/cotizacionService";
 import { Accessory } from '../models/Interfaces';
+import { useLocation } from 'react-router-dom';
 
 const steps = ['Piezas', 'Agregar Accesorios', 'Previsualización'];
 
@@ -21,6 +22,10 @@ export const CotizacionStepper: React.FC = () => {
   const resetAccesorios = useAccessoryStore((state) => state.clearItems);
   const resetGlobal = useCotizacionGlobalStore((state) => state.resetCotizacion);
   const { items, addItem, updateItem } = useAccessoryStore();
+  const location = useLocation();
+  const { isEdit } = location.state || {};
+
+  console.log("isEdit:", isEdit);
 
 
   const handleNext = () => {
@@ -53,13 +58,13 @@ export const CotizacionStepper: React.FC = () => {
       case 1:
         return <AccessorysPage />;
       case 2:
-        return <CotizacionPreview />;
+        return <CotizacionPreview isEdit={isEdit}/>;
       default:
         return <Typography>Step desconocido</Typography>;
     }
   };
 
-  const handleSave = async () => {
+  const addNewCotizacion = async () => {
     try {
       console.log("Guardando cotización:", cotizacion);
       const id = await saveCotizacion(cotizacion);
@@ -67,10 +72,30 @@ export const CotizacionStepper: React.FC = () => {
       resetPiezas();
       resetAccesorios();
       resetGlobal();
-      // Redirige
       navigate('/lista-cotizaciones');
     } catch (err) {
       console.error("No se pudo guardar la cotización", err);
+    }
+  }
+
+  const editCotizacion = async () => {
+    try {
+      console.log("Editando cotización ID:", cotizacion.id);
+      await updateCotizacionInFirestore(cotizacion.id, cotizacion);
+      resetPiezas();
+      resetAccesorios();
+      resetGlobal();
+      navigate('/lista-cotizaciones');
+    } catch (err) {
+      console.error("No se pudo guardar la cotización", err);
+    }
+  }
+
+  const handleSave = async () => {
+    if (isEdit) {
+      editCotizacion();
+    } else {
+      addNewCotizacion();
     }
   };
   return (

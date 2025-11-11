@@ -10,6 +10,7 @@ interface AccessoryState {
   updateItem: (id: string, updated: Omit<Accessory, 'id'>) => void;
   deleteItem: (id: string) => void;
   clearItems: () => void;
+  addListAccessories: (items: Accessory[]) => void;
 }
 
 export const useAccessoryStore = create<AccessoryState>((set) => ({
@@ -34,5 +35,7 @@ export const useAccessoryStore = create<AccessoryState>((set) => ({
     set((state) => ({
       items: state.items.filter((item) => item.id !== id),
     })),
-  clearItems: () => set({ items: [] })
+  clearItems: () => set({ items: [] }),
+  addListAccessories: (items) =>
+    set({ items: [...items] }),
 }));

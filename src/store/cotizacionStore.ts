@@ -8,6 +8,7 @@ interface CotizacionState {
     updateItem: (id: string, updated: Omit<EstanteItem, 'precioTotal' | 'precioUnitario' | 'tc'>) => void;
     deleteItem: (id: string) => void;
     clearItems: () => void;
+    addListItem: (items: EstanteItem[]) => void;
 }
 
 export const useCotizacionStore = create<CotizacionState>((set) => ({
@@ -43,5 +44,7 @@ export const useCotizacionStore = create<CotizacionState>((set) => ({
         set((state) => ({
             items: state.items.filter((item) => item.id !== id),
         })),
-    clearItems: () => set({ items: [] })
+    clearItems: () => set({ items: [] }),
+    addListItem: (items) =>
+        set({ items: [...items] }),
 }));

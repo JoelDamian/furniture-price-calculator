@@ -60,7 +60,7 @@ function App() {
             isAuthenticated ? <CotizacionesList /> : <Navigate to="/" />
           } />
           <Route path="/cotizacion" element={
-            isAuthenticated ? <CotizacionStepper /> : <Navigate to="/" />
+            isAuthenticated ? <CotizacionStepper /> : <Navigate to="/" state={{ isEdit: false }}/>
           } />
         </Routes>
       </Container>
