@@ -62,6 +62,7 @@ export const FormCotizacion: React.FC = () => {
         addItem,
         updateItem,
         deleteItem,
+        addListItem,
         setDimensiones: setStoreDimensiones
     } = useCotizacionStore();
 
@@ -199,6 +200,56 @@ export const FormCotizacion: React.FC = () => {
         deleteItem(id);
     }
 
+    const handleActualizarMedidas = () => {
+        const { ancho, alto, profundidad } = dimensiones;
+        const updatedItems = items.map((item) => {
+            const piezaLower = item.pieza.toLowerCase();
+            let nuevasAncho = item.ancho;
+            let nuevoLargo = item.largo;
+
+            if (furnitureType === 'estante') {
+                if (['lateral', 'laterales'].includes(piezaLower)) {
+                    nuevasAncho = profundidad;
+                    nuevoLargo = alto;
+                } else if (['base', 'repisa'].includes(piezaLower)) {
+                    nuevasAncho = ancho;
+                    nuevoLargo = profundidad;
+                } else if (piezaLower === 'fondo') {
+                    nuevasAncho = ancho;
+                    nuevoLargo = alto;
+                }
+            } else if (furnitureType === 'gabinete') {
+                if (piezaLower === 'lateral') {
+                    nuevasAncho = profundidad;
+                    nuevoLargo = alto;
+                } else if (piezaLower === 'fondo') {
+                    nuevasAncho = ancho;
+                    nuevoLargo = alto;
+                } else if (['base', 'repisa'].includes(piezaLower)) {
+                    nuevasAncho = ancho;
+                    nuevoLargo = profundidad;
+                } else if (piezaLower === 'puertas') {
+                    nuevasAncho = ancho / 2;
+                    nuevoLargo = alto;
+                }
+            }
+
+            const precioUnitario = calcularPrecioUnitario(nuevasAncho, nuevoLargo, item.precioM2);
+            const precioTotal = parseFloat((precioUnitario * item.cantidad).toFixed(2));
+            const tc = calcularTC(item.cantidad, nuevasAncho, nuevoLargo, item.atc || 0, item.ltc || 0);
+
+            return {
+                ...item,
+                ancho: nuevasAncho,
+                largo: nuevoLargo,
+                precioUnitario,
+                precioTotal,
+                tc,
+            };
+        })
+        addListItem(updatedItems);
+    };
+
     return (
         <Container sx={{ py: 4 }}>
             <Typography variant="h4" gutterBottom>Formulario Cotización</Typography>
@@ -258,6 +309,15 @@ export const FormCotizacion: React.FC = () => {
                         value={dimensiones.profundidad}
                         onChange={handleDimensionesChange}
                     />
+                </Grid>
+                <Grid item xs={12}>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handleActualizarMedidas}
+                    >
+                        Actualizar medidas de piezas
+                    </Button>
                 </Grid>
             </Grid>
 
