@@ -16,32 +16,33 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
-    DialogActions,
-    Autocomplete,
-    Box
+    DialogActions
 } from '@mui/material';
-import { useAccessoryStore } from '../store/accessoryStore';
-import { Accessory } from '../models/Interfaces';
-import { useAccessoryGlobalStore } from '../store/accessoryGlobalStore';
 
-export const AccessorysPage: React.FC = () => {
-    const [form, setForm] = useState<Omit<Accessory, 'precioTotal'>>({
+import { useAccessoryGlobalStore } from '../store/accessoryGlobalStore';
+import { AccessoryGlobal } from '../models/Interfaces';
+import { saveAccesorio, updateAccesorioInFirestore, deleteAccessorioInFirestore } from '../services/accessoriesService';
+
+export const AccessorysGlobalPage: React.FC = () => {
+
+    const [form, setForm] = useState<Omit<AccessoryGlobal, 'precioTotal'>>({
         id: '',
-        cantidad: 0,
         nombre: '',
         precioUnitario: 0
     });
 
     const [editOpen, setEditOpen] = useState(false);
-    const [editForm, setEditForm] = useState<Omit<Accessory, 'precioTotal'>>({
+    const [editForm, setEditForm] = useState<Omit<AccessoryGlobal, 'precioTotal'>>({
         id: '',
-        cantidad: 0,
         nombre: '',
         precioUnitario: 0
     });
 
-    const { items, addItem, updateItem, deleteItem } = useAccessoryStore();
-    const { items: accesoriosGlobal } = useAccessoryGlobalStore();
+    // --- NEW: Delete confirmation modal ---
+    const [deleteOpen, setDeleteOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+
+    const { items, addItem, updateItem, deleteItem } = useAccessoryGlobalStore();
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -51,17 +52,23 @@ export const AccessorysPage: React.FC = () => {
         });
     };
 
-    const handleSubmit = () => {
-        const precioTotal = form.cantidad * form.precioUnitario;
-        const nuevo: Accessory = { ...form, precioTotal };
+    const handleSubmit = async () => {
+        const nuevo: AccessoryGlobal = { ...form };
+        
         addItem(nuevo);
-        setForm({ cantidad: 0, nombre: '', precioUnitario: 0, id: crypto.randomUUID() });
+        await saveAccesorio(nuevo);
+
+        setForm({ nombre: '', precioUnitario: 0, id: crypto.randomUUID() });
     };
 
     const handleRowClick = (id: string) => {
         const item = items.find(i => i.id === id);
         if (!item) return;
-        setEditForm({ id: item.id, cantidad: item.cantidad, nombre: item.nombre, precioUnitario: item.precioUnitario });
+        setEditForm({
+            id: item.id,
+            nombre: item.nombre,
+            precioUnitario: item.precioUnitario
+        });
         setEditOpen(true);
     };
 
@@ -73,62 +80,55 @@ export const AccessorysPage: React.FC = () => {
         });
     };
 
-    const handleUpdate = () => {
-        const precioTotal = editForm.cantidad * editForm.precioUnitario;
-        updateItem(editForm.id, { ...editForm, precioTotal });
+    const handleUpdate = async () => {
+
+        updateItem(editForm.id, { ...editForm });
+
+        await updateAccesorioInFirestore(editForm.id, { ...editForm });
+
         setEditOpen(false);
     };
 
-    const handleDelete = (id: string) => {
-        deleteItem(id);
+    // ---------------------------------------
+    // NEW: SHOW DELETE CONFIRMATION DIALOG
+    // ---------------------------------------
+    const openDeleteDialog = (id: string) => {
+        setItemToDelete(id);
+        setDeleteOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (itemToDelete) {
+            deleteItem(itemToDelete);
+            await deleteAccessorioInFirestore(itemToDelete);
+        }
+        setDeleteOpen(false);
+        setItemToDelete(null);
+    };
+
+    const cancelDelete = () => {
+        setDeleteOpen(false);
+        setItemToDelete(null);
     };
 
     return (
         <Container sx={{ py: 4 }}>
+
+            {/* FORM */}
             <Typography variant="h4" gutterBottom>
                 Crear Accesorio
             </Typography>
+
             <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid item xs={12} sm={4}>
                     <TextField
                         fullWidth
-                        label="Cantidad"
-                        name="cantidad"
-                        value={form.cantidad}
+                        label="Nombre"
+                        name="nombre"
+                        value={form.nombre}
                         onChange={handleChange}
-                        type="number"
                     />
                 </Grid>
-                <Box width={192}>
-                    <Autocomplete
-                        freeSolo
-                        options={accesoriosGlobal}
-                        value={form.nombre}
-                        getOptionLabel={(option) =>
-                            typeof option === "string" ? option : option.nombre
-                        }
-                        onChange={(_, selectedOption) => {
-                            if (selectedOption && typeof selectedOption !== "string") {
-                                // selectedOption is AccessoryGlobal
-                                setForm({
-                                    ...form,
-                                    nombre: selectedOption.nombre,
-                                    precioUnitario: selectedOption.precioUnitario
-                                });
-                            }
-                        }}
-                        onInputChange={(_, newValue) => {
-                            setForm({
-                                ...form,
-                                nombre: newValue
-                            });
-                        }}
-
-                        renderInput={(params) => (
-                            <TextField {...params} label="Nombre" fullWidth />
-                        )}
-                    />
-                </Box>
                 <Grid item xs={12} sm={4}>
                     <TextField
                         fullWidth
@@ -139,56 +139,49 @@ export const AccessorysPage: React.FC = () => {
                         type="number"
                     />
                 </Grid>
+
                 <Grid item xs={12}>
                     <Button variant="contained" onClick={handleSubmit}>Agregar</Button>
                 </Grid>
             </Grid>
 
+            {/* TABLE */}
             <Typography variant="h5" gutterBottom>
                 Lista de Accessorios
             </Typography>
+
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
                         <TableRow>
-                            <TableCell>Cantidad</TableCell>
                             <TableCell>Nombre</TableCell>
                             <TableCell>Precio Unitario</TableCell>
-                            <TableCell>Precio Total</TableCell>
                             <TableCell>Acciones</TableCell>
                         </TableRow>
                     </TableHead>
+
                     <TableBody>
                         {items.map(item => (
                             <TableRow key={item.id} hover>
-                                <TableCell>{item.cantidad}</TableCell>
                                 <TableCell>{item.nombre}</TableCell>
                                 <TableCell>{item.precioUnitario}</TableCell>
-                                <TableCell>{item.precioTotal}</TableCell>
                                 <TableCell>
                                     <Button onClick={() => handleRowClick(item.id)}>Editar</Button>
-                                    <Button color="error" onClick={() => handleDelete(item.id)}>Eliminar</Button>
+                                    <Button color="error" onClick={() => openDeleteDialog(item.id)}>Eliminar</Button>
                                 </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
+
                 </Table>
             </TableContainer>
 
+            {/* EDIT MODAL */}
             <Dialog open={editOpen} onClose={() => setEditOpen(false)}>
                 <DialogTitle>Editar Ítem</DialogTitle>
                 <DialogContent>
                     <Grid container spacing={2} sx={{ mt: 1 }}>
-                        <Grid item xs={12} sm={4}>
-                            <TextField
-                                fullWidth
-                                label="Cantidad"
-                                name="cantidad"
-                                value={editForm.cantidad}
-                                onChange={handleEditChange}
-                                type="number"
-                            />
-                        </Grid>
+
                         <Grid item xs={12} sm={4}>
                             <TextField
                                 fullWidth
@@ -198,6 +191,7 @@ export const AccessorysPage: React.FC = () => {
                                 onChange={handleEditChange}
                             />
                         </Grid>
+
                         <Grid item xs={12} sm={4}>
                             <TextField
                                 fullWidth
@@ -210,11 +204,29 @@ export const AccessorysPage: React.FC = () => {
                         </Grid>
                     </Grid>
                 </DialogContent>
+
                 <DialogActions>
                     <Button onClick={() => setEditOpen(false)}>Cancelar</Button>
-                    <Button onClick={handleUpdate} variant="contained">Actualizar</Button>
+                    <Button variant="contained" onClick={handleUpdate}>Actualizar</Button>
                 </DialogActions>
             </Dialog>
+
+            {/* DELETE CONFIRMATION MODAL */}
+            <Dialog open={deleteOpen} onClose={cancelDelete}>
+                <DialogTitle>Confirmación</DialogTitle>
+                <DialogContent>
+                    <Typography>
+                        ¿Está seguro de borrar este accesorio?
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={cancelDelete}>No</Button>
+                    <Button color="error" variant="contained" onClick={confirmDelete}>
+                        Sí
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
         </Container>
     );
 };

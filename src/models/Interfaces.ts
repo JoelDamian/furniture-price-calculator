@@ -14,6 +14,13 @@ export interface Accessory {
   precioTotal: number;
 }
 
+export interface AccessoryGlobal {
+  id: string;
+  nombre: string;
+  precioUnitario: number;
+}
+
+
 export interface EstanteItem {
   id: string;
   cantidad: number;

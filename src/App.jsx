@@ -7,15 +7,22 @@ import { useAuthStore } from './store/authStore';
 import { useEffect } from 'react';
 import { CotizacionStepper } from './components/CotizacionStepper';
 import { CotizacionesList } from './components/CotizacionesList';
+import { AccessorysGlobalPage } from './components/AccessoriesGlobal';
+import { useAccessoryGlobalStore } from './store/accessoryGlobalStore';
+import { fetchAccessories } from './services/accessoriesService';
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const login = useAuthStore((state) => state.login);
 
   const restoreSession = useAuthStore((state) => state.restoreSession);
+  const { addListAccessories } = useAccessoryGlobalStore();
 
   useEffect(() => {
     restoreSession();
+    fetchAccessories().then((accessories) => {
+      addListAccessories(accessories);
+    });
   }, [restoreSession]);
 
 
@@ -40,6 +47,9 @@ function App() {
           <Button color="inherit" component={Link} to="/">
             Materiales
           </Button>
+          <Button color="inherit" component={Link} to="/accesorios">
+            Accesorios
+          </Button>
           <Button color="inherit" component={Link} to="/lista-cotizaciones">
             Lista de Cotizaciones
           </Button>
@@ -60,7 +70,10 @@ function App() {
             isAuthenticated ? <CotizacionesList /> : <Navigate to="/" />
           } />
           <Route path="/cotizacion" element={
-            isAuthenticated ? <CotizacionStepper /> : <Navigate to="/" state={{ isEdit: false }}/>
+            isAuthenticated ? <CotizacionStepper /> : <Navigate to="/" state={{ isEdit: false }} />
+          } />
+          <Route path="/accesorios" element={
+            isAuthenticated ? <AccessorysGlobalPage /> : <Navigate to="/" />
           } />
         </Routes>
       </Container>
