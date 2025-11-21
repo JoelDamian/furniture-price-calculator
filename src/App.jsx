@@ -10,6 +10,7 @@ import { CotizacionesList } from './components/CotizacionesList';
 import { AccessorysGlobalPage } from './components/AccessoriesGlobal';
 import { useAccessoryGlobalStore } from './store/accessoryGlobalStore';
 import { fetchAccessories } from './services/accessoriesService';
+import {ResponsiveAppBar} from './components/ResponsiveAppBar';
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -39,25 +40,7 @@ function App() {
 
   return (
     <Router>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Gestor de Materiales
-          </Typography>
-          <Button color="inherit" component={Link} to="/">
-            Materiales
-          </Button>
-          <Button color="inherit" component={Link} to="/accesorios">
-            Accesorios
-          </Button>
-          <Button color="inherit" component={Link} to="/lista-cotizaciones">
-            Lista de Cotizaciones
-          </Button>
-          <Button color="inherit" component={Link} to="/cotizacion">
-            Crear Cotizacion
-          </Button>
-        </Toolbar>
-      </AppBar>
+      <ResponsiveAppBar />
       <Container sx={{ mt: 4 }}>
         <Routes>
           <Route path="/" element={

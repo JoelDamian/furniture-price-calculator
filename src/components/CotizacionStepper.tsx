@@ -105,7 +105,7 @@ export const CotizacionStepper: React.FC = () => {
     }
   };
   return (
-    <Box sx={{ width: '100%', p: 4 }}>
+    <Box sx={{ width: '100%', p: { xs: 1, md: 4 } }}>
       <Stepper activeStep={activeStep} alternativeLabel>
         {steps.map((label) => (
           <Step key={label}>
