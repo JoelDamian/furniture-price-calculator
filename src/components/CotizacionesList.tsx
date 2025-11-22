@@ -23,7 +23,7 @@ import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
 import { useNavigate } from 'react-router-dom';
-import { agruparPiezasPorMaterial } from '../utils/groupByMaterial';
+import { agruparPiezasPorMaterial, agruparPiezasPorMaterialDeVariasCotizaciones } from '../utils/groupByMaterial';
 import { optimizarMelamina } from "../utils/optimizerMelamina";
 import { useMaterialStore } from '../store/materialStore';
 
@@ -37,6 +37,8 @@ export const CotizacionesList: React.FC = () => {
   const { setCotizacion } = useCotizacionGlobalStore();
   const navigate = useNavigate();
   const materiales = useMaterialStore((state) => state.materiales);
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
+
 
   useEffect(() => {
     const loadCotizaciones = async () => {
@@ -94,6 +96,47 @@ export const CotizacionesList: React.FC = () => {
   };
 
 
+  const handleOptimizarVarias = () => {
+    if (!cotizaciones) return;
+
+    const seleccionadas = cotizaciones.filter((c) =>
+      selectedRows.includes(c.id)
+    );
+    const grupos = agruparPiezasPorMaterialDeVariasCotizaciones(seleccionadas);
+
+    // Construimos materialInfo automáticamente
+    const materialInfo = buildMaterialInfo(materiales);
+
+    const resultadosTotales: any[] = [];
+
+    Object.entries(grupos).forEach(([material, piezas]) => {
+      const materialData = materialInfo[material];
+
+      if (!materialData) {
+        console.error(`❌ No existe información para el material: ${material}`);
+        return;
+      }
+
+      const resultado = optimizarMelamina(materialData, piezas);
+
+      resultadosTotales.push({
+        material,
+        resultado,
+      });
+    });
+
+    // Enviar a la vista de planos
+    navigate("/planos", { state: { planos: resultadosTotales } });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedRows((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id]
+    );
+  };
+
   const handleOptimizar = (cotizacion: Cotizacion) => {
     const grupos = agruparPiezasPorMaterial(cotizacion);
 
@@ -123,6 +166,7 @@ export const CotizacionesList: React.FC = () => {
   };
 
 
+
   return (
     <Container sx={{ py: 4 }}>
       <Typography variant="h4" gutterBottom>Lista de Cotizaciones</Typography>
@@ -136,10 +180,23 @@ export const CotizacionesList: React.FC = () => {
         sx={{ mb: 3 }}
       />
 
+      {selectedRows.length > 1 && (
+        <Button
+          variant="contained"
+          color="secondary"
+          sx={{ mt: 2 }}
+          onClick={handleOptimizarVarias}
+        >
+          Generar Optimización
+        </Button>
+      )}
+
+
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell></TableCell>
               <TableCell>Nombre</TableCell>
               <TableCell>Total</TableCell>
               <TableCell>Mano de Obra</TableCell>
@@ -151,6 +208,13 @@ export const CotizacionesList: React.FC = () => {
           <TableBody>
             {filteredCotizaciones?.map((c) => (
               <TableRow key={c.id}>
+                <TableCell>
+                  <input
+                    type="checkbox"
+                    checked={selectedRows.includes(c.id)}
+                    onChange={() => toggleSelect(c.id)}
+                  />
+                </TableCell>
                 <TableCell>{c.nombre}</TableCell>
                 <TableCell>{c.total.toFixed(2)}</TableCell>
                 <TableCell>{c.manoDeObra.toFixed(2)}</TableCell>

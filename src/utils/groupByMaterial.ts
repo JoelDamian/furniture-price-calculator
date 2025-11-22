@@ -9,3 +9,20 @@ export function agruparPiezasPorMaterial(cotizacion: Cotizacion) {
     return acc;
   }, {});
 }
+
+export function agruparPiezasPorMaterialDeVariasCotizaciones(
+  cotizaciones: Cotizacion[]
+): Record<string, EstanteItem[]> {
+  
+  return cotizaciones.reduce<Record<string, EstanteItem[]>>((acc, cotizacion) => {
+    
+    cotizacion.piezas.forEach((pieza) => {
+      if (!acc[pieza.material]) {
+        acc[pieza.material] = [];
+      }
+      acc[pieza.material].push(pieza);
+    });
+
+    return acc;
+  }, {});
+}

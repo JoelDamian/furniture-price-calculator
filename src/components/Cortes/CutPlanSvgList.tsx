@@ -18,7 +18,9 @@ export const CutPlanSvgList: FC<CutPlanSvgListProps> = ({
           <div style={{ marginBottom: 8, fontWeight: 600 }}>
             {hoja.hojaId} ({hoja.width}m × {hoja.height}m)
           </div>
-          <CutSheetSvg hoja={hoja} svgWidth={svgWidthPerSheet} />
+          <div className="pdf-hoja">
+            <CutSheetSvg hoja={hoja} svgWidth={svgWidthPerSheet} />
+          </div>
         </div>
       ))}
     </div>
