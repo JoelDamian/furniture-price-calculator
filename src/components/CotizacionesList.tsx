@@ -17,12 +17,15 @@ import {
   DialogActions,
   TextField
 } from '@mui/material';
-import { Cotizacion } from '../models/Interfaces';
+import { Cotizacion, MaterialItem } from '../models/Interfaces';
 import { fetchCotizaciones, deleteCotizacionInFirestore } from '../services/cotizacionService';
 import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
 import { useNavigate } from 'react-router-dom';
+import { agruparPiezasPorMaterial } from '../utils/groupByMaterial';
+import { optimizarMelamina } from "../utils/optimizerMelamina";
+import { useMaterialStore } from '../store/materialStore';
 
 export const CotizacionesList: React.FC = () => {
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[] | undefined>([]);
@@ -33,6 +36,7 @@ export const CotizacionesList: React.FC = () => {
   const { addListAccessories } = useAccessoryStore();
   const { setCotizacion } = useCotizacionGlobalStore();
   const navigate = useNavigate();
+  const materiales = useMaterialStore((state) => state.materiales);
 
   useEffect(() => {
     const loadCotizaciones = async () => {
@@ -79,6 +83,46 @@ export const CotizacionesList: React.FC = () => {
     c.nombre.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const buildMaterialInfo = (materiales: MaterialItem[]) => {
+    const info: Record<string, MaterialItem> = {};
+
+    materiales.forEach((m) => {
+      info[m.material] = m; // clave = nombre del material
+    });
+
+    return info;
+  };
+
+
+  const handleOptimizar = (cotizacion: Cotizacion) => {
+    const grupos = agruparPiezasPorMaterial(cotizacion);
+
+    // Construimos materialInfo automáticamente
+    const materialInfo = buildMaterialInfo(materiales);
+
+    const resultadosTotales: any[] = [];
+
+    Object.entries(grupos).forEach(([material, piezas]) => {
+      const materialData = materialInfo[material];
+
+      if (!materialData) {
+        console.error(`❌ No existe información para el material: ${material}`);
+        return;
+      }
+
+      const resultado = optimizarMelamina(materialData, piezas);
+
+      resultadosTotales.push({
+        material,
+        resultado,
+      });
+    });
+
+    // Enviar a la vista de planos
+    navigate("/planos", { state: { planos: resultadosTotales } });
+  };
+
+
   return (
     <Container sx={{ py: 4 }}>
       <Typography variant="h4" gutterBottom>Lista de Cotizaciones</Typography>
@@ -114,6 +158,7 @@ export const CotizacionesList: React.FC = () => {
                 <TableCell>{c.precioVentaConIva.toFixed(2)}</TableCell>
                 <TableCell>
                   <Button onClick={() => handleRowClick(c)}>Editar</Button>
+                  <Button onClick={() => handleOptimizar(c)} color="primary">Optimizar</Button>
                   <Button color="error" onClick={() => handleDeleteClick(c)}>Eliminar</Button>
                 </TableCell>
               </TableRow>

@@ -11,6 +11,7 @@ import { AccessorysGlobalPage } from './components/AccessoriesGlobal';
 import { useAccessoryGlobalStore } from './store/accessoryGlobalStore';
 import { fetchAccessories } from './services/accessoriesService';
 import {ResponsiveAppBar} from './components/ResponsiveAppBar';
+import {PlanosPage} from './components/Cortes/PlanosPage';
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -57,6 +58,9 @@ function App() {
           } />
           <Route path="/accesorios" element={
             isAuthenticated ? <AccessorysGlobalPage /> : <Navigate to="/" />
+          } />
+          <Route path="/planos" element={
+            isAuthenticated ? <PlanosPage /> : <Navigate to="/" />
           } />
         </Routes>
       </Container>

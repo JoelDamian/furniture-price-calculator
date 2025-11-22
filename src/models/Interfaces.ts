@@ -53,3 +53,19 @@ export interface Dimensiones {
     alto: number;
     profundidad: number;
 }
+
+export interface PiezaColocada {
+  piezaId: string;
+  x: number;      // en metros
+  y: number;      // en metros
+  width: number;  // en metros
+  height: number; // en metros
+  rotado: boolean;
+}
+
+export interface HojaCorte {
+  hojaId: string;
+  width: number;   // en metros
+  height: number;  // en metros
+  piezas: PiezaColocada[];
+}
