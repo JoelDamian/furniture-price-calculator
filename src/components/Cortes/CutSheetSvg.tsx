@@ -1,6 +1,26 @@
 import React, { FC, useMemo } from "react";
 import { HojaCorte } from "../../models/Interfaces";
 
+// Color palette for different pieces
+const PIECE_COLORS = [
+  "#FFB3BA", // Light pink
+  "#BAFFC9", // Light green
+  "#BAE1FF", // Light blue
+  "#FFFFBA", // Light yellow
+  "#FFD9BA", // Light orange
+  "#E0BBE4", // Light purple
+  "#D4F0F0", // Light teal
+  "#FCE4EC", // Pink
+  "#F0F4C3", // Lime
+  "#B2EBF2", // Cyan
+  "#FFCCBC", // Deep orange light
+  "#D1C4E9", // Deep purple light
+  "#C8E6C9", // Green light
+  "#FFF9C4", // Yellow light
+  "#F8BBD9", // Pink light
+  "#B3E5FC", // Light blue 2
+];
+
 interface CutSheetSvgProps {
   hoja: HojaCorte;
   svgWidth?: number;
@@ -21,6 +41,16 @@ export const CutSheetSvg: FC<CutSheetSvgProps> = ({
     };
   }, [hoja.width, hoja.height, svgWidth]);
 
+  // Create a color map for unique piezaIds
+  const colorMap = useMemo(() => {
+    const uniquePiezaIds = [...new Set(hoja.piezas.map(p => p.piezaId))];
+    const map: Record<string, string> = {};
+    uniquePiezaIds.forEach((id, index) => {
+      map[id] = PIECE_COLORS[index % PIECE_COLORS.length];
+    });
+    return map;
+  }, [hoja.piezas]);
+
   return (
     <svg
       width={svgWidth}
@@ -40,24 +70,27 @@ export const CutSheetSvg: FC<CutSheetSvgProps> = ({
       />
 
       {/* Piezas */}
-      {hoja.piezas.map((pieza) => {
+      {hoja.piezas.map((pieza, index) => {
         const x = pieza.x * scale;
         const y = pieza.y * scale;
         const w = pieza.width * scale;
         const h = pieza.height * scale;
 
+        // Get color for this piece based on piezaId
+        const fillColor = colorMap[pieza.piezaId] || PIECE_COLORS[0];
+
         // Medidas formateadas en metros (2 decimales)
         const label = `${pieza.width.toFixed(2)} × ${pieza.height.toFixed(2)} m`;
 
         return (
-          <g key={`${hoja.hojaId}-${pieza.piezaId}-${x}-${y}`}>
+          <g key={`${hoja.hojaId}-${pieza.piezaId}-${x}-${y}-${index}`}>
             <rect
               x={x}
               y={y}
               width={w}
               height={h}
-              fill="#d0e6ff"
-              stroke="#1a3b5d"
+              fill={fillColor}
+              stroke="#333"
               strokeWidth={0.8}
             />
 
