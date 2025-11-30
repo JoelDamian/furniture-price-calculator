@@ -1,5 +1,5 @@
 // MelaminaMaterialsPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   Container,
   TextField,
@@ -18,36 +18,56 @@ import {
   DialogContent,
   DialogActions
 } from '@mui/material';
-import { useMaterialStore } from '../store/materialStore';
+import { useMaterialStore, Material } from '../store/materialStore';
 import { MaterialItem } from '../models/Interfaces';
 import { saveMaterial, fetchMaterials, updateMaterialInFirestore } from '../services/materialService';
 
+// Initial form state
+const initialFormState: Omit<MaterialItem, 'precioM2'> = {
+  id: '',
+  precioHoja: 0,
+  med1: 0,
+  med2: 0,
+  material: ''
+};
+
+// Memoized Table Row Component
+interface MaterialRowProps {
+  item: Material;
+  onClick: (id: string) => void;
+}
+
+const MaterialRow = memo(({ item, onClick }: MaterialRowProps) => (
+  <TableRow hover onClick={() => onClick(item.id)} sx={{ cursor: 'pointer' }}>
+    <TableCell>{item.precioHoja}</TableCell>
+    <TableCell>{item.med1}</TableCell>
+    <TableCell>{item.med2}</TableCell>
+    <TableCell>{item.material}</TableCell>
+    <TableCell>{item.precioM2}</TableCell>
+  </TableRow>
+));
+
+MaterialRow.displayName = 'MaterialRow';
+
+// Helper function to calculate price per M2
+const calculatePrecioM2 = (precioHoja: number, med1: number, med2: number): number => {
+  const area = med1 * med2;
+  return area > 0 ? parseFloat((precioHoja / area).toFixed(6)) : 0;
+};
+
 export const MelaminaMaterialsPage: React.FC = () => {
-  const [form, setForm] = useState<Omit<MaterialItem, 'precioM2'>>({
-    id: '',
-    precioHoja: 0,
-    med1: 0,
-    med2: 0,
-    material: ''
-  });
-
-  const [material, setMaterial] = useState<Omit<MaterialItem, 'precioM2'>>({
-    id: '',
-    precioHoja: 0,
-    med1: 0,
-    med2: 0,
-    material: ''
-  });
-
+  const [form, setForm] = useState(initialFormState);
+  const [material, setMaterial] = useState(initialFormState);
   const [editIndex, setEditIndex] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
 
+  // Store selectors
   const materiales = useMaterialStore((state) => state.materiales);
   const addMaterial = useMaterialStore((state) => state.addMaterial);
   const updateMaterial = useMaterialStore((state) => state.updateMaterial);
   const setMateriales = useMaterialStore((state) => state.setMateriales);
 
-   useEffect(() => {
+  useEffect(() => {
     const loadMaterials = async () => {
       try {
         const loaded = await fetchMaterials();
@@ -59,46 +79,36 @@ export const MelaminaMaterialsPage: React.FC = () => {
     loadMaterials();
   }, [setMateriales]);
 
-  const calculatePrecioM2 = (precioHoja: number, med1: number, med2: number): number => {
-    const area = med1 * med2;
-    return area > 0 ? parseFloat((precioHoja / area).toFixed(6)) : 0;
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setForm({
-      ...form,
+    setForm((prev) => ({
+      ...prev,
       [name]: name === 'material' ? value : parseFloat(value)
-    });
-  };
+    }));
+  }, []);
 
-  const handleChangeModel = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChangeModel = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setMaterial({
-      ...material,
+    setMaterial((prev) => ({
+      ...prev,
       [name]: name === 'material' ? value : parseFloat(value)
-    });
-  };
+    }));
+  }, []);
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     const precioM2 = calculatePrecioM2(form.precioHoja, form.med1, form.med2);
     const nuevo = { ...form, precioM2 };
 
     try {
-      // Guarda en Firestore (sin id)
       const generatedId = await saveMaterial(nuevo);
-
-      // Luego, guarda en el store local (incluyendo el id generado)
       addMaterial({ ...nuevo, id: generatedId });
-
-      // Resetea el formulario
-      setForm({ precioHoja: 0, med1: 0, med2: 0, material: '', id: '' });
+      setForm(initialFormState);
     } catch (error) {
       console.error('Error al guardar el material:', error);
     }
-  };
+  }, [form, addMaterial]);
 
-  const handleRowClick = (id: string) => {
+  const handleRowClick = useCallback((id: string) => {
     const item = materiales.find(mat => mat.id === id);
     if (!item) return;
     setMaterial({
@@ -110,38 +120,52 @@ export const MelaminaMaterialsPage: React.FC = () => {
     });
     setEditIndex(id);
     setEditOpen(true);
-  };
+  }, [materiales]);
 
-  const handleUpdate = async () => {
-  if (editIndex === null) return;
+  const handleUpdate = useCallback(async () => {
+    if (editIndex === null) return;
 
-  const precioM2 = calculatePrecioM2(material.precioHoja, material.med1, material.med2);
-  const actualizado = {
-    precioHoja: material.precioHoja,
-    med1: material.med1,
-    med2: material.med2,
-    material: material.material,
-    precioM2
-  };
+    const precioM2 = calculatePrecioM2(material.precioHoja, material.med1, material.med2);
+    const actualizado = {
+      precioHoja: material.precioHoja,
+      med1: material.med1,
+      med2: material.med2,
+      material: material.material,
+      precioM2
+    };
 
-  try {
-    await updateMaterialInFirestore(editIndex, actualizado);
-    updateMaterial(editIndex, actualizado);
+    try {
+      await updateMaterialInFirestore(editIndex, actualizado);
+      updateMaterial(editIndex, actualizado);
+      setEditOpen(false);
+      setEditIndex(null);
+      setForm(initialFormState);
+    } catch (error) {
+      console.error("Error actualizando material en Firestore:", error);
+    }
+  }, [editIndex, material, updateMaterial]);
+
+  const handleCancelEdit = useCallback(() => {
     setEditOpen(false);
     setEditIndex(null);
-    setForm({ precioHoja: 0, med1: 0, med2: 0, material: '', id: '' });
-  } catch (error) {
-    console.error("Error actualizando material en Firestore:", error);
-  }
-};
+    setForm(initialFormState);
+  }, []);
 
-  const handleCancelEdit = () => {
-    setEditOpen(false);
-    setEditIndex(null);
-    setForm({ precioHoja: 0, med1: 0, med2: 0, material: '', id: '' });
-  }
+  // Memoized calculated precioM2 for form display
+  const formPrecioM2 = useMemo(() => 
+    calculatePrecioM2(form.precioHoja, form.med1, form.med2)
+  , [form.precioHoja, form.med1, form.med2]);
 
-  const precioM2 = calculatePrecioM2(form.precioHoja, form.med1, form.med2);
+  // Memoized table rows
+  const tableRows = useMemo(() => 
+    materiales.map((item) => (
+      <MaterialRow 
+        key={item.id} 
+        item={item} 
+        onClick={handleRowClick} 
+      />
+    ))
+  , [materiales, handleRowClick]);
 
   return (
     <Container sx={{ py: 4 }}>
@@ -192,7 +216,7 @@ export const MelaminaMaterialsPage: React.FC = () => {
           <TextField
             fullWidth
             label="P/M2"
-            value={precioM2}
+            value={formPrecioM2}
             InputProps={{ readOnly: true }}
           />
         </Grid>
@@ -218,20 +242,12 @@ export const MelaminaMaterialsPage: React.FC = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {materiales.map((item, index) => (
-              <TableRow key={index} hover onClick={() => handleRowClick(item.id)}>
-                <TableCell>{item.precioHoja}</TableCell>
-                <TableCell>{item.med1}</TableCell>
-                <TableCell>{item.med2}</TableCell>
-                <TableCell>{item.material}</TableCell>
-                <TableCell>{item.precioM2}</TableCell>
-              </TableRow>
-            ))}
+            {tableRows}
           </TableBody>
         </Table>
       </TableContainer>
 
-      <Dialog open={editOpen} onClose={() => setEditOpen(false)}>
+      <Dialog open={editOpen} onClose={handleCancelEdit}>
         <DialogTitle>Editar Material</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>

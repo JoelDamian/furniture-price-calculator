@@ -1,29 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Stepper, Step, StepLabel, Button, Typography } from '@mui/material';
 import { FormCotizacion } from './FormularioCot';
 import { AccessorysPage } from './Accessories';
 import { CotizacionPreview } from './CotizacionPreview';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
 import { saveCotizacion, updateCotizacionInFirestore } from "../services/cotizacionService";
 import { Accessory } from '../models/Interfaces';
-import { useLocation } from 'react-router-dom';
 
 const steps = ['Piezas', 'Agregar Accesorios', 'Previsualización'];
+
+// Memoized step components to prevent unnecessary re-renders
+const MemoizedFormCotizacion = React.memo(FormCotizacion);
+const MemoizedAccessorysPage = React.memo(AccessorysPage);
+const MemoizedCotizacionPreview = React.memo(CotizacionPreview);
 
 export const CotizacionStepper: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isEdit } = location.state || {};
+
+  // Store selectors
   const cotizacion = useCotizacionGlobalStore((state) => state.cotizacion);
   const piezas = useCotizacionStore((state) => state.items);
   const resetPiezas = useCotizacionStore((state) => state.clearItems);
   const resetAccesorios = useAccessoryStore((state) => state.clearItems);
   const resetGlobal = useCotizacionGlobalStore((state) => state.resetCotizacion);
-  const { items, addItem, updateItem } = useAccessoryStore();
-  const location = useLocation();
-  const { isEdit } = location.state || {};
+  const items = useAccessoryStore((state) => state.items);
+  const addItem = useAccessoryStore((state) => state.addItem);
+  const updateItem = useAccessoryStore((state) => state.updateItem);
 
   useEffect(() => {
     if (!isEdit) {
@@ -31,14 +39,25 @@ export const CotizacionStepper: React.FC = () => {
       resetAccesorios();
       resetGlobal();
     }
+  }, [isEdit, resetPiezas, resetAccesorios, resetGlobal]);
+
+  // Memoized reset function
+  const resetAllStores = useCallback(() => {
+    resetPiezas();
+    resetAccesorios();
+    resetGlobal();
   }, [resetPiezas, resetAccesorios, resetGlobal]);
 
-
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     const totalTC = piezas.reduce((sum, item) => sum + (item.tc || 0), 0);
     const foundTC = items.find(acc => acc.id === '1');
+    
     if (foundTC) {
-      let newAccesorio = { ...foundTC, cantidad: totalTC, precioTotal: totalTC * foundTC.precioUnitario };
+      const newAccesorio = { 
+        ...foundTC, 
+        cantidad: totalTC, 
+        precioTotal: totalTC * foundTC.precioUnitario 
+      };
       updateItem(newAccesorio.id, newAccesorio);
     } else {
       const nuevoAccesorio: Accessory = {
@@ -47,63 +66,64 @@ export const CotizacionStepper: React.FC = () => {
         nombre: 'Tapacanto',
         precioUnitario: 3,
         precioTotal: totalTC * 3
-      }
+      };
       addItem(nuevoAccesorio);
     }
-    setActiveStep((prevActiveStep) => prevActiveStep + 1);
-  };
+    setActiveStep((prev) => prev + 1);
+  }, [piezas, items, updateItem, addItem]);
 
-  const handleBack = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep - 1);
-  };
+  const handleBack = useCallback(() => {
+    setActiveStep((prev) => prev - 1);
+  }, []);
 
-  const renderStepContent = (step: number) => {
-    switch (step) {
+  // Memoized step content renderer
+  const stepContent = useMemo(() => {
+    switch (activeStep) {
       case 0:
-        return <FormCotizacion />;
+        return <MemoizedFormCotizacion />;
       case 1:
-        return <AccessorysPage />;
+        return <MemoizedAccessorysPage />;
       case 2:
-        return <CotizacionPreview isEdit={isEdit} />;
+        return <MemoizedCotizacionPreview isEdit={isEdit} />;
       default:
         return <Typography>Step desconocido</Typography>;
     }
-  };
+  }, [activeStep, isEdit]);
 
-  const addNewCotizacion = async () => {
+  const addNewCotizacion = useCallback(async () => {
     try {
       console.log("Guardando cotización:", cotizacion);
       const id = await saveCotizacion(cotizacion);
       console.log("Cotización guardada con ID:", id);
-      resetPiezas();
-      resetAccesorios();
-      resetGlobal();
+      resetAllStores();
       navigate('/lista-cotizaciones');
     } catch (err) {
       console.error("No se pudo guardar la cotización", err);
     }
-  }
+  }, [cotizacion, resetAllStores, navigate]);
 
-  const editCotizacion = async () => {
+  const editCotizacion = useCallback(async () => {
     try {
       console.log("Editando cotización ID:", cotizacion.id);
       await updateCotizacionInFirestore(cotizacion.id, cotizacion);
-      resetPiezas();
-      resetAccesorios();
-      resetGlobal();
+      resetAllStores();
       navigate('/lista-cotizaciones');
     } catch (err) {
       console.error("No se pudo guardar la cotización", err);
     }
-  }
+  }, [cotizacion, resetAllStores, navigate]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (isEdit) {
-      editCotizacion();
+      await editCotizacion();
     } else {
-      addNewCotizacion();
+      await addNewCotizacion();
     }
-  };
+  }, [isEdit, editCotizacion, addNewCotizacion]);
+
+  const isLastStep = activeStep === steps.length - 1;
+  const isFirstStep = activeStep === 0;
+
   return (
     <Box sx={{ width: '100%', p: { xs: 1, md: 4 } }}>
       <Stepper activeStep={activeStep} alternativeLabel>
@@ -114,29 +134,32 @@ export const CotizacionStepper: React.FC = () => {
         ))}
       </Stepper>
 
-      <Box sx={{ mt: 4 }}>{renderStepContent(activeStep)}</Box>
+      <Box sx={{ mt: 4 }}>{stepContent}</Box>
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
         <Button
-          disabled={activeStep === 0}
+          disabled={isFirstStep}
           onClick={handleBack}
           variant="outlined"
         >
           Atrás
         </Button>
-        {activeStep != steps.length - 1 && <Button
-          variant="contained"
-          onClick={handleNext}
-          disabled={activeStep === steps.length - 1}
-        >
-          Siguiente
-        </Button>}
-        {activeStep === steps.length - 1 && <Button
-          variant="contained"
-          onClick={handleSave}
-        >
-          Guardar
-        </Button>}
+        {!isLastStep && (
+          <Button
+            variant="contained"
+            onClick={handleNext}
+          >
+            Siguiente
+          </Button>
+        )}
+        {isLastStep && (
+          <Button
+            variant="contained"
+            onClick={handleSave}
+          >
+            Guardar
+          </Button>
+        )}
       </Box>
     </Box>
   );

@@ -1,5 +1,5 @@
 // FormCotizacion.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
     Container,
     Grid,
@@ -22,13 +22,12 @@ import {
     DialogContent,
     DialogActions,
     Box,
-    Autocomplete
+    Autocomplete,
+    SelectChangeEvent
 } from '@mui/material';
 import { useMaterialStore } from '../store/materialStore';
 import { useCotizacionStore } from '../store/cotizacionStore';
-import { EstanteItem } from '../models/Interfaces';
-import { Dimensiones } from '../models/Interfaces';
-
+import { EstanteItem, Dimensiones } from '../models/Interfaces';
 
 const piezaOptions = [
     'lateral', 'zocalo', 'base', 'fondo', 'puerta',
@@ -38,38 +37,72 @@ const piezaOptions = [
 
 const tipoMuebleOptions = ['estante', 'gabinete'];
 
+// Initial form state
+const initialFormState: Omit<EstanteItem, 'precioUnitario' | 'precioTotal' | 'tc'> = {
+    id: '',
+    cantidad: 0,
+    pieza: '',
+    material: '',
+    ancho: 0,
+    largo: 0,
+    precioM2: 0,
+    atc: 0,
+    ltc: 0
+};
+
+// Memoized Table Row Component
+interface TableRowItemProps {
+    item: EstanteItem;
+    onEdit: (id: string) => void;
+    onDelete: (id: string) => void;
+}
+
+const TableRowItem = memo(({ item, onEdit, onDelete }: TableRowItemProps) => (
+    <TableRow>
+        <TableCell>{item.cantidad}</TableCell>
+        <TableCell>{item.pieza}</TableCell>
+        <TableCell>{item.material}</TableCell>
+        <TableCell>{item.ancho}</TableCell>
+        <TableCell>{item.largo}</TableCell>
+        <TableCell>{item.precioM2}</TableCell>
+        <TableCell>{item.precioUnitario}</TableCell>
+        <TableCell>{item.precioTotal}</TableCell>
+        <TableCell>{item.tc?.toFixed(2)}</TableCell>
+        <TableCell>
+            <Button onClick={() => onEdit(item.id)}>Editar</Button>
+            <Button color="error" onClick={() => onDelete(item.id)}>Eliminar</Button>
+        </TableCell>
+    </TableRow>
+));
+
+TableRowItem.displayName = 'TableRowItem';
+
 export const FormCotizacion: React.FC = () => {
     const materiales = useMaterialStore((state) => state.materiales);
+    const items = useCotizacionStore((state) => state.items);
+    const dimensiones = useCotizacionStore((state) => state.dimensiones);
+    const addItem = useCotizacionStore((state) => state.addItem);
+    const updateItem = useCotizacionStore((state) => state.updateItem);
+    const deleteItem = useCotizacionStore((state) => state.deleteItem);
+    const addListItem = useCotizacionStore((state) => state.addListItem);
+    const setStoreDimensiones = useCotizacionStore((state) => state.setDimensiones);
 
-    // Estado local para formulario, dimensiones y tipo de mueble
     const [furnitureType, setFurnitureType] = useState<string>('');
-    const [form, setForm] = useState<Omit<EstanteItem, 'precioUnitario' | 'precioTotal' | 'tc'>>({
-        id: '',
-        cantidad: 0,
-        pieza: '',
-        material: '',
-        ancho: 0,
-        largo: 0,
-        precioM2: 0,
-        atc: 0,
-        ltc: 0
-    });
-
-    // Store para la lista y manejo de items
-    const {
-        items,
-        dimensiones,
-        addItem,
-        updateItem,
-        deleteItem,
-        addListItem,
-        setDimensiones: setStoreDimensiones
-    } = useCotizacionStore();
-
+    const [form, setForm] = useState(initialFormState);
     const [editIndex, setEditIndex] = useState<string | null>(null);
     const [editOpen, setEditOpen] = useState<boolean>(false);
 
-    // Sincronizar precioM2 desde materiales cuando cambie material
+    // Memoized calculations
+    const calcularPrecioUnitario = useCallback((ancho: number, largo: number, precioM2: number) => {
+        const area = ancho * largo;
+        return parseFloat((area * precioM2).toFixed(2));
+    }, []);
+
+    const calcularTC = useCallback((cantidad: number, ancho: number, largo: number, atc: number = 0, ltc: number = 0) => {
+        return cantidad * (ancho * atc + largo * ltc);
+    }, []);
+
+    // Sync precioM2 from materials when material changes
     useEffect(() => {
         const selected = materiales.find((m) => m.material === form.material);
         if (selected) {
@@ -80,7 +113,7 @@ export const FormCotizacion: React.FC = () => {
         }
     }, [form.material, materiales]);
 
-    // Rellenado automático de ancho/largo en función del tipo de mueble/ pieza
+    // Auto-fill width/height based on furniture type and piece
     useEffect(() => {
         if (!furnitureType || !form.pieza) return;
         const { ancho, alto, profundidad } = dimensiones;
@@ -107,34 +140,33 @@ export const FormCotizacion: React.FC = () => {
         }
     }, [form.pieza, furnitureType, dimensiones]);
 
-    const calcularPrecioUnitario = (ancho: number, largo: number, precioM2: number) => {
-        const area = ancho * largo;
-        return parseFloat((area * precioM2).toFixed(2));
-    };
-
-    const calcularTC = (cantidad: number, ancho: number, largo: number, atc: number = 0, ltc: number = 0) => {
-        return cantidad * (ancho * atc + largo * ltc);
-    };
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+    const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent<string>) => {
         const { name, value } = e.target;
-        setForm({
-            ...form,
+        setForm((prev) => ({
+            ...prev,
             [name as string]: name === 'material' ? (value as string) : parseFloat(value as string)
-        });
-    };
+        }));
+    }, []);
 
-    const handleDimensionesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleDimensionesChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        const parsedValue = parseFloat(value as string);
+        const parsedValue = parseFloat(value);
 
         setStoreDimensiones({
             ...dimensiones,
             [name]: parsedValue
         });
-    };
+    }, [dimensiones, setStoreDimensiones]);
 
-    const handleAddItem = () => {
+    const handleFurnitureTypeChange = useCallback((e: SelectChangeEvent<string>) => {
+        setFurnitureType(e.target.value);
+    }, []);
+
+    const handlePiezaChange = useCallback((_: unknown, newValue: string | null) => {
+        setForm((prev) => ({ ...prev, pieza: newValue || '' }));
+    }, []);
+
+    const handleAddItem = useCallback(() => {
         const precioUnitario = calcularPrecioUnitario(form.ancho, form.largo, form.precioM2);
         const precioTotal = parseFloat((precioUnitario * form.cantidad).toFixed(2));
         const tc = calcularTC(form.cantidad, form.ancho, form.largo, form.atc || 0, form.ltc || 0);
@@ -143,25 +175,13 @@ export const FormCotizacion: React.FC = () => {
             id: crypto.randomUUID(),
             precioUnitario,
             precioTotal,
-            tc: tc
-        } as EstanteItem;  // Type assertion
+            tc
+        };
         addItem(nuevoItem);
+        setForm(initialFormState);
+    }, [form, calcularPrecioUnitario, calcularTC, addItem]);
 
-        // Reset formulario
-        setForm({
-            id: '',
-            cantidad: 0,
-            pieza: '',
-            material: '',
-            ancho: 0,
-            largo: 0,
-            precioM2: 0,
-            atc: 0,
-            ltc: 0
-        });
-    };
-
-    const handleRowClick = (id: string) => {
+    const handleRowClick = useCallback((id: string) => {
         const item = items.find(i => i.id === id);
         if (!item) return;
         setForm({
@@ -177,9 +197,9 @@ export const FormCotizacion: React.FC = () => {
         });
         setEditIndex(item.id);
         setEditOpen(true);
-    };
+    }, [items]);
 
-    const handleUpdateItem = () => {
+    const handleUpdateItem = useCallback(() => {
         if (editIndex === null) return;
         const precioUnitario = calcularPrecioUnitario(form.ancho, form.largo, form.precioM2);
         const precioTotal = parseFloat((precioUnitario * form.cantidad).toFixed(2));
@@ -188,19 +208,23 @@ export const FormCotizacion: React.FC = () => {
             ...form,
             precioUnitario,
             precioTotal,
-            tc: tc
-        } as EstanteItem;
+            tc
+        };
 
         updateItem(editIndex, updatedItem);
         setEditOpen(false);
         setEditIndex(null);
-    };
+    }, [editIndex, form, calcularPrecioUnitario, calcularTC, updateItem]);
 
-    const handleDelete = (id: string) => {
+    const handleDelete = useCallback((id: string) => {
         deleteItem(id);
-    }
+    }, [deleteItem]);
 
-    const handleActualizarMedidas = () => {
+    const handleCloseDialog = useCallback(() => {
+        setEditOpen(false);
+    }, []);
+
+    const handleActualizarMedidas = useCallback(() => {
         const { ancho, alto, profundidad } = dimensiones;
         const updatedItems = items.map((item) => {
             const piezaLower = item.pieza.toLowerCase();
@@ -246,9 +270,23 @@ export const FormCotizacion: React.FC = () => {
                 precioTotal,
                 tc,
             };
-        })
+        });
         addListItem(updatedItems);
-    };
+    }, [dimensiones, items, furnitureType, calcularPrecioUnitario, calcularTC, addListItem]);
+
+    // Memoized material options for Select
+    const materialOptions = useMemo(() => 
+        materiales.map((mat, i) => (
+            <MenuItem key={mat.id || i} value={mat.material}>{mat.material}</MenuItem>
+        ))
+    , [materiales]);
+
+    // Memoized furniture type options
+    const furnitureOptions = useMemo(() => 
+        tipoMuebleOptions.map((tipo, i) => (
+            <MenuItem key={i} value={tipo}>{tipo}</MenuItem>
+        ))
+    , []);
 
     return (
         <Container sx={{ py: 4 }}>
@@ -264,11 +302,9 @@ export const FormCotizacion: React.FC = () => {
                                 fullWidth
                                 value={furnitureType}
                                 label="Tipo de Mueble"
-                                onChange={(e) => setFurnitureType(e.target.value as string)}
+                                onChange={handleFurnitureTypeChange}
                             >
-                                {tipoMuebleOptions.map((tipo, i) => (
-                                    <MenuItem key={i} value={tipo}>{tipo}</MenuItem>
-                                ))}
+                                {furnitureOptions}
                             </Select>
                         </FormControl>
                     </Box>
@@ -340,15 +376,12 @@ export const FormCotizacion: React.FC = () => {
                             freeSolo
                             options={piezaOptions}
                             value={form.pieza}
-                            onInputChange={(_, newValue) =>
-                                setForm((prev) => ({ ...prev, pieza: newValue }))
-                            }
+                            onInputChange={handlePiezaChange}
                             renderInput={(params) => (
                                 <TextField {...params} label="Pieza" fullWidth />
                             )}
                         />
                     </Box>
-
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                     <Box width={192}>
@@ -360,9 +393,7 @@ export const FormCotizacion: React.FC = () => {
                                 label="Material"
                                 onChange={handleChange}
                             >
-                                {materiales.map((mat, i) => (
-                                    <MenuItem key={i} value={mat.material}>{mat.material}</MenuItem>
-                                ))}
+                                {materialOptions}
                             </Select>
                         </FormControl>
                     </Box>
@@ -448,29 +479,18 @@ export const FormCotizacion: React.FC = () => {
                     </TableHead>
                     <TableBody>
                         {items.map((item) => (
-                            <TableRow
+                            <TableRowItem
                                 key={item.id}
-                            >
-                                <TableCell>{item.cantidad}</TableCell>
-                                <TableCell>{item.pieza}</TableCell>
-                                <TableCell>{item.material}</TableCell>
-                                <TableCell>{item.ancho}</TableCell>
-                                <TableCell>{item.largo}</TableCell>
-                                <TableCell>{item.precioM2}</TableCell>
-                                <TableCell>{item.precioUnitario}</TableCell>
-                                <TableCell>{item.precioTotal}</TableCell>
-                                <TableCell>{item.tc?.toFixed(2)}</TableCell>
-                                <TableCell>
-                                    <Button onClick={() => handleRowClick(item.id)}>Editar</Button>
-                                    <Button color="error" onClick={() => handleDelete(item.id)}>Eliminar</Button>
-                                </TableCell>
-                            </TableRow>
+                                item={item}
+                                onEdit={handleRowClick}
+                                onDelete={handleDelete}
+                            />
                         ))}
                     </TableBody>
                 </Table>
             </TableContainer>
 
-            <Dialog open={editOpen} onClose={() => setEditOpen(false)}>
+            <Dialog open={editOpen} onClose={handleCloseDialog}>
                 <DialogTitle>Editar Línea</DialogTitle>
                 <DialogContent>
                     <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -489,9 +509,7 @@ export const FormCotizacion: React.FC = () => {
                                 freeSolo
                                 options={piezaOptions}
                                 value={form.pieza}
-                                onInputChange={(_, newValue) =>
-                                    setForm((prev) => ({ ...prev, pieza: newValue }))
-                                }
+                                onInputChange={handlePiezaChange}
                                 renderInput={(params) => (
                                     <TextField {...params} label="Pieza" fullWidth />
                                 )}
@@ -506,9 +524,7 @@ export const FormCotizacion: React.FC = () => {
                                     label="Material"
                                     onChange={handleChange}
                                 >
-                                    {materiales.map((mat, i) => (
-                                        <MenuItem key={i} value={mat.material}>{mat.material}</MenuItem>
-                                    ))}
+                                    {materialOptions}
                                 </Select>
                             </FormControl>
                         </Grid>
@@ -557,7 +573,7 @@ export const FormCotizacion: React.FC = () => {
                     </Grid>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setEditOpen(false)}>Cancelar</Button>
+                    <Button onClick={handleCloseDialog}>Cancelar</Button>
                     <Button onClick={handleUpdateItem} variant="contained">Actualizar</Button>
                 </DialogActions>
             </Dialog>

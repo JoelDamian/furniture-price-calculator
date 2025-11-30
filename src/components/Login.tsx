@@ -1,26 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Typography, Button, Container, TextField, Box } from '@mui/material';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../config/firebase'; // Asegúrate de tener tu configuración en firebase.ts
+import { auth } from '../config/firebase';
 import { useAuthStore } from '../store/authStore';
 
-export const Login = () => {
+export const Login: React.FC = () => {
   const login = useAuthStore((state) => state.login);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleLogin = async () => {
+  const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value);
+  }, []);
+
+  const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+  }, []);
+
+  const handleLogin = useCallback(async () => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-
-      login(user.uid); // Guarda el estado global de login con su ID
-      sessionStorage.setItem('isAuthenticated', 'true');
-    } catch (err: any) {
-      setError('Error al iniciar sesión: ' + err.message);
+      login(user.uid);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      setError('Error al iniciar sesión: ' + errorMessage);
     }
-  };
+  }, [email, password, login]);
 
   return (
     <Container sx={{ mt: 10 }}>
@@ -30,13 +37,13 @@ export const Login = () => {
           label="Correo electrónico"
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={handleEmailChange}
         />
         <TextField
           label="Contraseña"
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={handlePasswordChange}
         />
         {error && <Typography color="error">{error}</Typography>}
         <Button variant="contained" color="primary" onClick={handleLogin}>

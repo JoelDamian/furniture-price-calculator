@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   Container,
   Typography,
@@ -15,7 +15,8 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  TextField
+  TextField,
+  Checkbox
 } from '@mui/material';
 import { Cotizacion, MaterialItem } from '../models/Interfaces';
 import { fetchCotizaciones, deleteCotizacionInFirestore } from '../services/cotizacionService';
@@ -27,42 +28,105 @@ import { agruparPiezasPorMaterial, agruparPiezasPorMaterialDeVariasCotizaciones 
 import { optimizarMelamina } from "../utils/optimizerMelamina";
 import { useMaterialStore } from '../store/materialStore';
 
+// Memoized Table Row Component
+interface CotizacionRowProps {
+  cotizacion: Cotizacion;
+  isSelected: boolean;
+  onToggleSelect: (id: string) => void;
+  onEdit: (cotizacion: Cotizacion) => void;
+  onOptimize: (cotizacion: Cotizacion) => void;
+  onDelete: (cotizacion: Cotizacion) => void;
+}
+
+const CotizacionRow = memo(({ 
+  cotizacion, 
+  isSelected, 
+  onToggleSelect, 
+  onEdit, 
+  onOptimize, 
+  onDelete 
+}: CotizacionRowProps) => (
+  <TableRow>
+    <TableCell>
+      <Checkbox
+        checked={isSelected}
+        onChange={() => onToggleSelect(cotizacion.id)}
+      />
+    </TableCell>
+    <TableCell>{cotizacion.nombre}</TableCell>
+    <TableCell>{cotizacion.total.toFixed(2)}</TableCell>
+    <TableCell>{cotizacion.manoDeObra.toFixed(2)}</TableCell>
+    <TableCell>{cotizacion.precioVenta.toFixed(2)}</TableCell>
+    <TableCell>{cotizacion.precioVentaConIva.toFixed(2)}</TableCell>
+    <TableCell>
+      <Button onClick={() => onEdit(cotizacion)}>Editar</Button>
+      <Button onClick={() => onOptimize(cotizacion)} color="primary">Optimizar</Button>
+      <Button color="error" onClick={() => onDelete(cotizacion)}>Eliminar</Button>
+    </TableCell>
+  </TableRow>
+));
+
+CotizacionRow.displayName = 'CotizacionRow';
+
+// Build material info helper
+const buildMaterialInfo = (materiales: MaterialItem[]): Record<string, MaterialItem> => {
+  const info: Record<string, MaterialItem> = {};
+  materiales.forEach((m) => {
+    info[m.material] = m;
+  });
+  return info;
+};
+
 export const CotizacionesList: React.FC = () => {
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[] | undefined>([]);
   const [selectedCotizacion, setSelectedCotizacion] = useState<Cotizacion | null>(null);
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const { addListItem, setDimensiones } = useCotizacionStore();
-  const { addListAccessories } = useAccessoryStore();
-  const { setCotizacion } = useCotizacionGlobalStore();
-  const navigate = useNavigate();
-  const materiales = useMaterialStore((state) => state.materiales);
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
+  // Store selectors
+  const addListItem = useCotizacionStore((state) => state.addListItem);
+  const setDimensiones = useCotizacionStore((state) => state.setDimensiones);
+  const addListAccessories = useAccessoryStore((state) => state.addListAccessories);
+  const setCotizacion = useCotizacionGlobalStore((state) => state.setCotizacion);
+  const materiales = useMaterialStore((state) => state.materiales);
+  
+  const navigate = useNavigate();
 
   useEffect(() => {
     const loadCotizaciones = async () => {
       const datos = await fetchCotizaciones();
       setCotizaciones(datos);
     };
-
     loadCotizaciones();
   }, []);
 
-  const handleRowClick = (cotizacion: Cotizacion) => {
+  // Memoized filtered cotizaciones
+  const filteredCotizaciones = useMemo(() => 
+    cotizaciones?.filter(c =>
+      c.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+    ) || []
+  , [cotizaciones, searchTerm]);
+
+  // Memoized material info
+  const materialInfo = useMemo(() => 
+    buildMaterialInfo(materiales)
+  , [materiales]);
+
+  const handleRowClick = useCallback((cotizacion: Cotizacion) => {
     addListItem(cotizacion.piezas);
     addListAccessories(cotizacion.accesorios);
     setCotizacion(cotizacion);
     setDimensiones(cotizacion.dimensiones);
     navigate('/cotizacion', { state: { isEdit: true } });
-  };
+  }, [addListItem, addListAccessories, setCotizacion, setDimensiones, navigate]);
 
-  const handleDeleteClick = (cotizacion: Cotizacion) => {
+  const handleDeleteClick = useCallback((cotizacion: Cotizacion) => {
     setSelectedCotizacion(cotizacion);
     setOpen(true);
-  };
+  }, []);
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = useCallback(async () => {
     if (!selectedCotizacion) return;
 
     try {
@@ -74,40 +138,55 @@ export const CotizacionesList: React.FC = () => {
       setOpen(false);
       setSelectedCotizacion(null);
     }
-  };
+  }, [selectedCotizacion]);
 
-  const handleCancelDelete = () => {
+  const handleCancelDelete = useCallback(() => {
     setOpen(false);
     setSelectedCotizacion(null);
-  };
+  }, []);
 
-  const filteredCotizaciones = cotizaciones?.filter(c =>
-    c.nombre.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  }, []);
 
-  const buildMaterialInfo = (materiales: MaterialItem[]) => {
-    const info: Record<string, MaterialItem> = {};
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedRows((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id]
+    );
+  }, []);
 
-    materiales.forEach((m) => {
-      info[m.material] = m; // clave = nombre del material
+  const handleOptimizar = useCallback((cotizacion: Cotizacion) => {
+    const grupos = agruparPiezasPorMaterial(cotizacion);
+    const resultadosTotales: { material: string; resultado: ReturnType<typeof optimizarMelamina> }[] = [];
+
+    Object.entries(grupos).forEach(([material, piezas]) => {
+      const materialData = materialInfo[material];
+
+      if (!materialData) {
+        console.error(`❌ No existe información para el material: ${material}`);
+        return;
+      }
+
+      const resultado = optimizarMelamina(materialData, piezas);
+      resultadosTotales.push({
+        material,
+        resultado,
+      });
     });
 
-    return info;
-  };
+    navigate("/planos", { state: { planos: resultadosTotales } });
+  }, [materialInfo, navigate]);
 
-
-  const handleOptimizarVarias = () => {
+  const handleOptimizarVarias = useCallback(() => {
     if (!cotizaciones) return;
 
     const seleccionadas = cotizaciones.filter((c) =>
       selectedRows.includes(c.id)
     );
     const grupos = agruparPiezasPorMaterialDeVariasCotizaciones(seleccionadas);
-
-    // Construimos materialInfo automáticamente
-    const materialInfo = buildMaterialInfo(materiales);
-
-    const resultadosTotales: any[] = [];
+    const resultadosTotales: { material: string; resultado: ReturnType<typeof optimizarMelamina> }[] = [];
 
     Object.entries(grupos).forEach(([material, piezas]) => {
       const materialData = materialInfo[material];
@@ -118,54 +197,34 @@ export const CotizacionesList: React.FC = () => {
       }
 
       const resultado = optimizarMelamina(materialData, piezas);
-
       resultadosTotales.push({
         material,
         resultado,
       });
     });
 
-    // Enviar a la vista de planos
     navigate("/planos", { state: { planos: resultadosTotales } });
-  };
+  }, [cotizaciones, selectedRows, materialInfo, navigate]);
 
-  const toggleSelect = (id: string) => {
-    setSelectedRows((prev) =>
-      prev.includes(id)
-        ? prev.filter((x) => x !== id)
-        : [...prev, id]
-    );
-  };
+  // Memoized check if multiple selected
+  const hasMultipleSelected = useMemo(() => 
+    selectedRows.length > 1
+  , [selectedRows.length]);
 
-  const handleOptimizar = (cotizacion: Cotizacion) => {
-    const grupos = agruparPiezasPorMaterial(cotizacion);
-
-    // Construimos materialInfo automáticamente
-    const materialInfo = buildMaterialInfo(materiales);
-
-    const resultadosTotales: any[] = [];
-
-    Object.entries(grupos).forEach(([material, piezas]) => {
-      const materialData = materialInfo[material];
-
-      if (!materialData) {
-        console.error(`❌ No existe información para el material: ${material}`);
-        return;
-      }
-
-      const resultado = optimizarMelamina(materialData, piezas);
-
-      resultadosTotales.push({
-        material,
-        resultado,
-      });
-    });
-
-    // Enviar a la vista de planos
-    navigate("/planos", { state: { planos: resultadosTotales } });
-  };
-
-
+  // Memoized rows
+  const tableRows = useMemo(() => 
+    filteredCotizaciones.map((c) => (
+      <CotizacionRow
+        key={c.id}
+        cotizacion={c}
+        isSelected={selectedRows.includes(c.id)}
+        onToggleSelect={toggleSelect}
+        onEdit={handleRowClick}
+        onOptimize={handleOptimizar}
+        onDelete={handleDeleteClick}
+      />
+    ))
+  , [filteredCotizaciones, selectedRows, toggleSelect, handleRowClick, handleOptimizar, handleDeleteClick]);
 
   return (
     <Container sx={{ py: 4 }}>
@@ -176,11 +235,11 @@ export const CotizacionesList: React.FC = () => {
         label="Buscar por nombre"
         variant="outlined"
         value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
+        onChange={handleSearchChange}
         sx={{ mb: 3 }}
       />
 
-      {selectedRows.length > 1 && (
+      {hasMultipleSelected && (
         <Button
           variant="contained"
           color="secondary"
@@ -190,7 +249,6 @@ export const CotizacionesList: React.FC = () => {
           Generar Optimización
         </Button>
       )}
-
 
       <TableContainer component={Paper}>
         <Table>
@@ -206,27 +264,7 @@ export const CotizacionesList: React.FC = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredCotizaciones?.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell>
-                  <input
-                    type="checkbox"
-                    checked={selectedRows.includes(c.id)}
-                    onChange={() => toggleSelect(c.id)}
-                  />
-                </TableCell>
-                <TableCell>{c.nombre}</TableCell>
-                <TableCell>{c.total.toFixed(2)}</TableCell>
-                <TableCell>{c.manoDeObra.toFixed(2)}</TableCell>
-                <TableCell>{c.precioVenta.toFixed(2)}</TableCell>
-                <TableCell>{c.precioVentaConIva.toFixed(2)}</TableCell>
-                <TableCell>
-                  <Button onClick={() => handleRowClick(c)}>Editar</Button>
-                  <Button onClick={() => handleOptimizar(c)} color="primary">Optimizar</Button>
-                  <Button color="error" onClick={() => handleDeleteClick(c)}>Eliminar</Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {tableRows}
           </TableBody>
         </Table>
       </TableContainer>

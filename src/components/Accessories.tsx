@@ -1,5 +1,5 @@
 // AccessorysPage.tsx
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo, memo } from 'react';
 import {
     Container,
     TextField,
@@ -21,67 +21,125 @@ import {
     Box
 } from '@mui/material';
 import { useAccessoryStore } from '../store/accessoryStore';
-import { Accessory } from '../models/Interfaces';
+import { Accessory, AccessoryGlobal } from '../models/Interfaces';
 import { useAccessoryGlobalStore } from '../store/accessoryGlobalStore';
 
+// Initial form state
+const initialFormState: Omit<Accessory, 'precioTotal'> = {
+    id: '',
+    cantidad: 0,
+    nombre: '',
+    precioUnitario: 0
+};
+
+// Memoized Table Row Component
+interface AccessoryRowProps {
+    item: Accessory;
+    onEdit: (id: string) => void;
+    onDelete: (id: string) => void;
+}
+
+const AccessoryRow = memo(({ item, onEdit, onDelete }: AccessoryRowProps) => (
+    <TableRow hover>
+        <TableCell>{item.cantidad}</TableCell>
+        <TableCell>{item.nombre}</TableCell>
+        <TableCell>{item.precioUnitario}</TableCell>
+        <TableCell>{item.precioTotal}</TableCell>
+        <TableCell>
+            <Button onClick={() => onEdit(item.id)}>Editar</Button>
+            <Button color="error" onClick={() => onDelete(item.id)}>Eliminar</Button>
+        </TableCell>
+    </TableRow>
+));
+
+AccessoryRow.displayName = 'AccessoryRow';
+
 export const AccessorysPage: React.FC = () => {
-    const [form, setForm] = useState<Omit<Accessory, 'precioTotal'>>({
-        id: '',
-        cantidad: 0,
-        nombre: '',
-        precioUnitario: 0
-    });
-
+    const [form, setForm] = useState(initialFormState);
     const [editOpen, setEditOpen] = useState(false);
-    const [editForm, setEditForm] = useState<Omit<Accessory, 'precioTotal'>>({
-        id: '',
-        cantidad: 0,
-        nombre: '',
-        precioUnitario: 0
-    });
+    const [editForm, setEditForm] = useState(initialFormState);
 
-    const { items, addItem, updateItem, deleteItem } = useAccessoryStore();
-    const { items: accesoriosGlobal } = useAccessoryGlobalStore();
+    // Store selectors
+    const items = useAccessoryStore((state) => state.items);
+    const addItem = useAccessoryStore((state) => state.addItem);
+    const updateItem = useAccessoryStore((state) => state.updateItem);
+    const deleteItem = useAccessoryStore((state) => state.deleteItem);
+    const accesoriosGlobal = useAccessoryGlobalStore((state) => state.items);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setForm({
-            ...form,
+        setForm((prev) => ({
+            ...prev,
             [name]: name === 'nombre' ? value : parseFloat(value)
-        });
-    };
+        }));
+    }, []);
 
-    const handleSubmit = () => {
+    const handleSubmit = useCallback(() => {
         const precioTotal = form.cantidad * form.precioUnitario;
-        const nuevo: Accessory = { ...form, precioTotal };
+        const nuevo: Accessory = { ...form, id: crypto.randomUUID(), precioTotal };
         addItem(nuevo);
-        setForm({ cantidad: 0, nombre: '', precioUnitario: 0, id: crypto.randomUUID() });
-    };
+        setForm({ ...initialFormState, id: crypto.randomUUID() });
+    }, [form, addItem]);
 
-    const handleRowClick = (id: string) => {
+    const handleRowClick = useCallback((id: string) => {
         const item = items.find(i => i.id === id);
         if (!item) return;
-        setEditForm({ id: item.id, cantidad: item.cantidad, nombre: item.nombre, precioUnitario: item.precioUnitario });
-        setEditOpen(true);
-    };
-
-    const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setEditForm({
-            ...editForm,
-            [name]: name === 'nombre' ? value : parseFloat(value)
+        setEditForm({ 
+            id: item.id, 
+            cantidad: item.cantidad, 
+            nombre: item.nombre, 
+            precioUnitario: item.precioUnitario 
         });
-    };
+        setEditOpen(true);
+    }, [items]);
 
-    const handleUpdate = () => {
+    const handleEditChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setEditForm((prev) => ({
+            ...prev,
+            [name]: name === 'nombre' ? value : parseFloat(value)
+        }));
+    }, []);
+
+    const handleUpdate = useCallback(() => {
         const precioTotal = editForm.cantidad * editForm.precioUnitario;
         updateItem(editForm.id, { ...editForm, precioTotal });
         setEditOpen(false);
-    };
+    }, [editForm, updateItem]);
 
-    const handleDelete = (id: string) => {
+    const handleDelete = useCallback((id: string) => {
         deleteItem(id);
-    };
+    }, [deleteItem]);
+
+    const handleCloseDialog = useCallback(() => {
+        setEditOpen(false);
+    }, []);
+
+    // Handle autocomplete selection
+    const handleAutocompleteChange = useCallback((
+        _: unknown, 
+        selectedOption: string | AccessoryGlobal | null
+    ) => {
+        if (selectedOption && typeof selectedOption !== "string") {
+            setForm((prev) => ({
+                ...prev,
+                nombre: selectedOption.nombre,
+                precioUnitario: selectedOption.precioUnitario
+            }));
+        }
+    }, []);
+
+    const handleAutocompleteInputChange = useCallback((_: unknown, newValue: string) => {
+        setForm((prev) => ({
+            ...prev,
+            nombre: newValue
+        }));
+    }, []);
+
+    // Memoized getOptionLabel
+    const getOptionLabel = useCallback((option: string | AccessoryGlobal) => {
+        return typeof option === "string" ? option : option.nombre;
+    }, []);
 
     return (
         <Container sx={{ py: 4 }}>
@@ -104,26 +162,9 @@ export const AccessorysPage: React.FC = () => {
                         freeSolo
                         options={accesoriosGlobal}
                         value={form.nombre}
-                        getOptionLabel={(option) =>
-                            typeof option === "string" ? option : option.nombre
-                        }
-                        onChange={(_, selectedOption) => {
-                            if (selectedOption && typeof selectedOption !== "string") {
-                                // selectedOption is AccessoryGlobal
-                                setForm({
-                                    ...form,
-                                    nombre: selectedOption.nombre,
-                                    precioUnitario: selectedOption.precioUnitario
-                                });
-                            }
-                        }}
-                        onInputChange={(_, newValue) => {
-                            setForm({
-                                ...form,
-                                nombre: newValue
-                            });
-                        }}
-
+                        getOptionLabel={getOptionLabel}
+                        onChange={handleAutocompleteChange}
+                        onInputChange={handleAutocompleteInputChange}
                         renderInput={(params) => (
                             <TextField {...params} label="Nombre" fullWidth />
                         )}
@@ -159,23 +200,19 @@ export const AccessorysPage: React.FC = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {items.map(item => (
-                            <TableRow key={item.id} hover>
-                                <TableCell>{item.cantidad}</TableCell>
-                                <TableCell>{item.nombre}</TableCell>
-                                <TableCell>{item.precioUnitario}</TableCell>
-                                <TableCell>{item.precioTotal}</TableCell>
-                                <TableCell>
-                                    <Button onClick={() => handleRowClick(item.id)}>Editar</Button>
-                                    <Button color="error" onClick={() => handleDelete(item.id)}>Eliminar</Button>
-                                </TableCell>
-                            </TableRow>
+                        {items.map((item) => (
+                            <AccessoryRow
+                                key={item.id}
+                                item={item}
+                                onEdit={handleRowClick}
+                                onDelete={handleDelete}
+                            />
                         ))}
                     </TableBody>
                 </Table>
             </TableContainer>
 
-            <Dialog open={editOpen} onClose={() => setEditOpen(false)}>
+            <Dialog open={editOpen} onClose={handleCloseDialog}>
                 <DialogTitle>Editar Ítem</DialogTitle>
                 <DialogContent>
                     <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -211,7 +248,7 @@ export const AccessorysPage: React.FC = () => {
                     </Grid>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setEditOpen(false)}>Cancelar</Button>
+                    <Button onClick={handleCloseDialog}>Cancelar</Button>
                     <Button onClick={handleUpdate} variant="contained">Actualizar</Button>
                 </DialogActions>
             </Dialog>

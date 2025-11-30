@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo, memo } from 'react';
 import {
   Container,
   Typography,
@@ -18,57 +18,111 @@ import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { EstanteItem, Accessory } from '../models/Interfaces';
 
 interface CotizacionPreviewProps {
   isEdit?: boolean;
 }
 
-export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit }) => {
-  const { items: piezas, dimensiones } = useCotizacionStore();
-  const { items: accesorios } = useAccessoryStore();
-  const { cotizacion, setCotizacion } = useCotizacionGlobalStore();
+// Memoized Pieza Row
+interface PiezaRowProps {
+  item: EstanteItem;
+}
 
-  const [manoDeObra, setManoDeObra] = useState(0);
+const PiezaRow = memo(({ item }: PiezaRowProps) => (
+  <TableRow>
+    <TableCell>{item.cantidad}</TableCell>
+    <TableCell>{item.pieza}</TableCell>
+    <TableCell>{item.material}</TableCell>
+    <TableCell>{item.ancho}</TableCell>
+    <TableCell>{item.largo}</TableCell>
+    <TableCell>{item.precioM2}</TableCell>
+    <TableCell>{item.precioUnitario}</TableCell>
+    <TableCell>{item.precioTotal}</TableCell>
+  </TableRow>
+));
+
+PiezaRow.displayName = 'PiezaRow';
+
+// Memoized Accesorio Row
+interface AccesorioRowProps {
+  item: Accessory;
+}
+
+const AccesorioRow = memo(({ item }: AccesorioRowProps) => (
+  <TableRow>
+    <TableCell>{item.cantidad}</TableCell>
+    <TableCell>{item.nombre}</TableCell>
+    <TableCell>{item.precioUnitario}</TableCell>
+    <TableCell>{item.precioTotal}</TableCell>
+  </TableRow>
+));
+
+AccesorioRow.displayName = 'AccesorioRow';
+
+export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit }) => {
+  // Store selectors
+  const piezas = useCotizacionStore((state) => state.items);
+  const dimensiones = useCotizacionStore((state) => state.dimensiones);
+  const accesorios = useAccessoryStore((state) => state.items);
+  const cotizacion = useCotizacionGlobalStore((state) => state.cotizacion);
+  const setCotizacion = useCotizacionGlobalStore((state) => state.setCotizacion);
+
   const [nombre, setNombre] = useState(isEdit ? cotizacion.nombre : '');
-  const [total, setTotal] = useState(0);
-  const [precioVenta, setPrecioVenta] = useState(0);
-  const [precioVentaConIva, setPrecioVentaConIva] = useState(0);
   const componentRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // Memoized calculations
+  const calculations = useMemo(() => {
     const totalEstantes = piezas.reduce((acc, item) => acc + item.precioTotal, 0);
     const totalAccesorios = accesorios.reduce((acc, item) => acc + item.precioTotal, 0);
     const newTotal = totalEstantes + totalAccesorios;
     const precioConIva = newTotal * 2.5;
     const calculoManoObra = newTotal + (newTotal * 0.05);
-    const precioDeVenta = newTotal + calculoManoObra ;
+    const precioDeVenta = newTotal + calculoManoObra;
 
-    setTotal(newTotal);
-    setPrecioVenta(precioDeVenta);
-    setPrecioVentaConIva(precioConIva);
-    setManoDeObra(calculoManoObra);
+    return {
+      total: newTotal,
+      manoDeObra: calculoManoObra,
+      precioVenta: precioDeVenta,
+      precioVentaConIva: precioConIva
+    };
+  }, [piezas, accesorios]);
 
+  // Update cotizacion store only when necessary data changes
+  useEffect(() => {
     setCotizacion({
       id: isEdit && cotizacion.id ? cotizacion.id : '',
       nombre,
       piezas,
       accesorios,
-      manoDeObra: calculoManoObra,
-      total: newTotal,
-      precioVenta: precioDeVenta,
-      precioVentaConIva: precioConIva,
+      manoDeObra: calculations.manoDeObra,
+      total: calculations.total,
+      precioVenta: calculations.precioVenta,
+      precioVentaConIva: calculations.precioVentaConIva,
       dimensiones
     });
-  }, [piezas, accesorios, nombre, manoDeObra, setCotizacion, isEdit, cotizacion.id, cotizacion.nombre]);
+  }, [
+    nombre, 
+    piezas, 
+    accesorios, 
+    calculations, 
+    dimensiones, 
+    setCotizacion, 
+    isEdit, 
+    cotizacion.id
+  ]);
 
-  const handleDownloadPdf = async () => {
+  const handleNombreChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setNombre(e.target.value);
+  }, []);
+
+  const handleDownloadPdf = useCallback(async () => {
     if (!componentRef.current) return;
     const element = componentRef.current;
 
-    // Captura con estilos incluidos
     const canvas = await html2canvas(element, {
       scale: 2,
-      useCORS: true, // si tienes imágenes externas
+      useCORS: true,
     });
 
     const imgData = canvas.toDataURL('image/png');
@@ -79,7 +133,6 @@ export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit }) 
     });
 
     const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
     const margin = 40;
 
     const imgProps = pdf.getImageProperties(imgData);
@@ -88,7 +141,22 @@ export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit }) 
 
     pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
     pdf.save(`${nombre || 'cotizacion'}.pdf`);
-  };
+  }, [nombre]);
+
+  // Memoized pieza rows
+  const piezaRows = useMemo(() => 
+    piezas.map((item) => (
+      <PiezaRow key={item.id} item={item} />
+    ))
+  , [piezas]);
+
+  // Memoized accesorio rows
+  const accesorioRows = useMemo(() => 
+    accesorios.map((item) => (
+      <AccesorioRow key={item.id} item={item} />
+    ))
+  , [accesorios]);
+
   return (
     <Container sx={{ py: 4 }}>
       <Button variant="contained" sx={{ mb: 2 }} onClick={handleDownloadPdf}>
@@ -103,7 +171,7 @@ export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit }) 
               label="Nombre de la Cotización"
               type="text"
               value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
+              onChange={handleNombreChange}
             />
           </Grid>
         </Grid>
@@ -124,18 +192,7 @@ export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit }) 
               </TableRow>
             </TableHead>
             <TableBody>
-              {piezas.map((item, index) => (
-                <TableRow key={index}>
-                  <TableCell>{item.cantidad}</TableCell>
-                  <TableCell>{item.pieza}</TableCell>
-                  <TableCell>{item.material}</TableCell>
-                  <TableCell>{item.ancho}</TableCell>
-                  <TableCell>{item.largo}</TableCell>
-                  <TableCell>{item.precioM2}</TableCell>
-                  <TableCell>{item.precioUnitario}</TableCell>
-                  <TableCell>{item.precioTotal}</TableCell>
-                </TableRow>
-              ))}
+              {piezaRows}
             </TableBody>
           </Table>
         </TableContainer>
@@ -152,14 +209,7 @@ export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit }) 
               </TableRow>
             </TableHead>
             <TableBody>
-              {accesorios.map((item, index) => (
-                <TableRow key={index}>
-                  <TableCell>{item.cantidad}</TableCell>
-                  <TableCell>{item.nombre}</TableCell>
-                  <TableCell>{item.precioUnitario}</TableCell>
-                  <TableCell>{item.precioTotal}</TableCell>
-                </TableRow>
-              ))}
+              {accesorioRows}
             </TableBody>
           </Table>
         </TableContainer>
@@ -167,16 +217,16 @@ export const CotizacionPreview: React.FC<CotizacionPreviewProps> = ({ isEdit }) 
         <Typography variant="h6">Totales</Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={4}>
-            <Typography>Total: ${total.toFixed(2)}</Typography>
+            <Typography>Total: ${calculations.total.toFixed(2)}</Typography>
           </Grid>
           <Grid item xs={12} sm={4}>
-            <Typography>Mano de Obra: ${manoDeObra.toFixed(2)}</Typography>
+            <Typography>Mano de Obra: ${calculations.manoDeObra.toFixed(2)}</Typography>
           </Grid>
           <Grid item xs={12} sm={4}>
-            <Typography>Precio de Venta: ${precioVenta.toFixed(2)}</Typography>
+            <Typography>Precio de Venta: ${calculations.precioVenta.toFixed(2)}</Typography>
           </Grid>
           <Grid item xs={12} sm={4}>
-            <Typography>Precio de Venta con IVA: ${precioVentaConIva.toFixed(2)}</Typography>
+            <Typography>Precio de Venta con IVA: ${calculations.precioVentaConIva.toFixed(2)}</Typography>
           </Grid>
         </Grid>
       </div>

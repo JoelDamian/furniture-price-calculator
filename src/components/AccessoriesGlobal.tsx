@@ -1,5 +1,5 @@
-// AccessorysPage.tsx
-import React, { useState } from 'react';
+// AccessorysGlobalPage.tsx
+import React, { useState, useCallback, useMemo, memo } from 'react';
 import {
     Container,
     TextField,
@@ -23,45 +23,62 @@ import { useAccessoryGlobalStore } from '../store/accessoryGlobalStore';
 import { AccessoryGlobal } from '../models/Interfaces';
 import { saveAccesorio, updateAccesorioInFirestore, deleteAccessorioInFirestore } from '../services/accessoriesService';
 
+// Initial form state
+const initialFormState: Omit<AccessoryGlobal, 'precioTotal'> = {
+    id: '',
+    nombre: '',
+    precioUnitario: 0
+};
+
+// Memoized Table Row Component
+interface AccessoryGlobalRowProps {
+    item: AccessoryGlobal;
+    onEdit: (id: string) => void;
+    onDelete: (id: string) => void;
+}
+
+const AccessoryGlobalRow = memo(({ item, onEdit, onDelete }: AccessoryGlobalRowProps) => (
+    <TableRow hover>
+        <TableCell>{item.nombre}</TableCell>
+        <TableCell>{item.precioUnitario}</TableCell>
+        <TableCell>
+            <Button onClick={() => onEdit(item.id)}>Editar</Button>
+            <Button color="error" onClick={() => onDelete(item.id)}>Eliminar</Button>
+        </TableCell>
+    </TableRow>
+));
+
+AccessoryGlobalRow.displayName = 'AccessoryGlobalRow';
+
 export const AccessorysGlobalPage: React.FC = () => {
-
-    const [form, setForm] = useState<Omit<AccessoryGlobal, 'precioTotal'>>({
-        id: '',
-        nombre: '',
-        precioUnitario: 0
-    });
-
+    const [form, setForm] = useState(initialFormState);
     const [editOpen, setEditOpen] = useState(false);
-    const [editForm, setEditForm] = useState<Omit<AccessoryGlobal, 'precioTotal'>>({
-        id: '',
-        nombre: '',
-        precioUnitario: 0
-    });
-
-    // --- NEW: Delete confirmation modal ---
+    const [editForm, setEditForm] = useState(initialFormState);
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
-    const { items, addItem, updateItem, deleteItem } = useAccessoryGlobalStore();
+    // Store selectors
+    const items = useAccessoryGlobalStore((state) => state.items);
+    const addItem = useAccessoryGlobalStore((state) => state.addItem);
+    const updateItem = useAccessoryGlobalStore((state) => state.updateItem);
+    const deleteItem = useAccessoryGlobalStore((state) => state.deleteItem);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setForm({
-            ...form,
+        setForm((prev) => ({
+            ...prev,
             [name]: name === 'nombre' ? value : parseFloat(value)
-        });
-    };
+        }));
+    }, []);
 
-    const handleSubmit = async () => {
-        const nuevo: AccessoryGlobal = { ...form };
-        
+    const handleSubmit = useCallback(async () => {
+        const nuevo: AccessoryGlobal = { ...form, id: crypto.randomUUID() };
         addItem(nuevo);
         await saveAccesorio(nuevo);
+        setForm({ ...initialFormState, id: crypto.randomUUID() });
+    }, [form, addItem]);
 
-        setForm({ nombre: '', precioUnitario: 0, id: crypto.randomUUID() });
-    };
-
-    const handleRowClick = (id: string) => {
+    const handleRowClick = useCallback((id: string) => {
         const item = items.find(i => i.id === id);
         if (!item) return;
         setEditForm({
@@ -70,50 +87,59 @@ export const AccessorysGlobalPage: React.FC = () => {
             precioUnitario: item.precioUnitario
         });
         setEditOpen(true);
-    };
+    }, [items]);
 
-    const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleEditChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setEditForm({
-            ...editForm,
+        setEditForm((prev) => ({
+            ...prev,
             [name]: name === 'nombre' ? value : parseFloat(value)
-        });
-    };
+        }));
+    }, []);
 
-    const handleUpdate = async () => {
-
+    const handleUpdate = useCallback(async () => {
         updateItem(editForm.id, { ...editForm });
-
         await updateAccesorioInFirestore(editForm.id, { ...editForm });
-
         setEditOpen(false);
-    };
+    }, [editForm, updateItem]);
 
-    // ---------------------------------------
-    // NEW: SHOW DELETE CONFIRMATION DIALOG
-    // ---------------------------------------
-    const openDeleteDialog = (id: string) => {
+    const openDeleteDialog = useCallback((id: string) => {
         setItemToDelete(id);
         setDeleteOpen(true);
-    };
+    }, []);
 
-    const confirmDelete = async () => {
+    const confirmDelete = useCallback(async () => {
         if (itemToDelete) {
             deleteItem(itemToDelete);
             await deleteAccessorioInFirestore(itemToDelete);
         }
         setDeleteOpen(false);
         setItemToDelete(null);
-    };
+    }, [itemToDelete, deleteItem]);
 
-    const cancelDelete = () => {
+    const cancelDelete = useCallback(() => {
         setDeleteOpen(false);
         setItemToDelete(null);
-    };
+    }, []);
+
+    const handleCloseEditDialog = useCallback(() => {
+        setEditOpen(false);
+    }, []);
+
+    // Memoized table rows
+    const tableRows = useMemo(() =>
+        items.map((item) => (
+            <AccessoryGlobalRow
+                key={item.id}
+                item={item}
+                onEdit={handleRowClick}
+                onDelete={openDeleteDialog}
+            />
+        ))
+    , [items, handleRowClick, openDeleteDialog]);
 
     return (
         <Container sx={{ py: 4 }}>
-
             {/* FORM */}
             <Typography variant="h4" gutterBottom>
                 Crear Accesorio
@@ -159,29 +185,17 @@ export const AccessorysGlobalPage: React.FC = () => {
                             <TableCell>Acciones</TableCell>
                         </TableRow>
                     </TableHead>
-
                     <TableBody>
-                        {items.map(item => (
-                            <TableRow key={item.id} hover>
-                                <TableCell>{item.nombre}</TableCell>
-                                <TableCell>{item.precioUnitario}</TableCell>
-                                <TableCell>
-                                    <Button onClick={() => handleRowClick(item.id)}>Editar</Button>
-                                    <Button color="error" onClick={() => openDeleteDialog(item.id)}>Eliminar</Button>
-                                </TableCell>
-                            </TableRow>
-                        ))}
+                        {tableRows}
                     </TableBody>
-
                 </Table>
             </TableContainer>
 
             {/* EDIT MODAL */}
-            <Dialog open={editOpen} onClose={() => setEditOpen(false)}>
+            <Dialog open={editOpen} onClose={handleCloseEditDialog}>
                 <DialogTitle>Editar Ítem</DialogTitle>
                 <DialogContent>
                     <Grid container spacing={2} sx={{ mt: 1 }}>
-
                         <Grid item xs={12} sm={4}>
                             <TextField
                                 fullWidth
@@ -191,7 +205,6 @@ export const AccessorysGlobalPage: React.FC = () => {
                                 onChange={handleEditChange}
                             />
                         </Grid>
-
                         <Grid item xs={12} sm={4}>
                             <TextField
                                 fullWidth
@@ -204,9 +217,8 @@ export const AccessorysGlobalPage: React.FC = () => {
                         </Grid>
                     </Grid>
                 </DialogContent>
-
                 <DialogActions>
-                    <Button onClick={() => setEditOpen(false)}>Cancelar</Button>
+                    <Button onClick={handleCloseEditDialog}>Cancelar</Button>
                     <Button variant="contained" onClick={handleUpdate}>Actualizar</Button>
                 </DialogActions>
             </Dialog>
@@ -226,7 +238,6 @@ export const AccessorysGlobalPage: React.FC = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
-
         </Container>
     );
 };
