@@ -8,6 +8,8 @@ export interface Material {
     med2: number;
     material: string;
     precioM2: number;
+    isTube?: boolean;
+    precioML?: number; // precio por metro lineal (for tubes)
 }
 
 interface MaterialState {

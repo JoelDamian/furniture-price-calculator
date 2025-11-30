@@ -167,17 +167,21 @@ export const CotizacionesList: React.FC = () => {
   }, []);
 
   const handleOptimizarClick = useCallback((cotizacion: Cotizacion) => {
-    // Get materials from this cotizacion
+    // Get materials from this cotizacion (filter out tubes)
     const grupos = agruparPiezasPorMaterial(cotizacion);
     const materialesInicial: Record<string, boolean> = {};
     Object.keys(grupos).forEach((material) => {
-      materialesInicial[material] = false;
+      // Only include non-tube materials for optimization
+      const materialData = materialInfo[material];
+      if (!materialData?.isTube) {
+        materialesInicial[material] = false;
+      }
     });
     setMaterialesConBetas(materialesInicial);
     setCotizacionToOptimize(cotizacion);
     setIsMultipleOptimization(false);
     setOpenOptimizeModal(true);
-  }, []);
+  }, [materialInfo]);
 
   const handleToggleBeta = useCallback((material: string) => {
     setMaterialesConBetas((prev) => ({
@@ -211,6 +215,11 @@ export const CotizacionesList: React.FC = () => {
           return;
         }
 
+        // Skip tube materials - they don't need optimization
+        if (materialData.isTube) {
+          return;
+        }
+
         // If material has betas, don't allow rotation (rotate = false)
         const allowRotation = !materialesConBetas[material];
         const resultado = optimizarMelamina(materialData, piezas, allowRotation);
@@ -239,6 +248,11 @@ export const CotizacionesList: React.FC = () => {
           return;
         }
 
+        // Skip tube materials - they don't need optimization
+        if (materialData.isTube) {
+          return;
+        }
+
         // If material has betas, don't allow rotation (rotate = false)
         const allowRotation = !materialesConBetas[material];
         const resultado = optimizarMelamina(materialData, piezas, allowRotation);
@@ -264,12 +278,16 @@ export const CotizacionesList: React.FC = () => {
     const grupos = agruparPiezasPorMaterialDeVariasCotizaciones(seleccionadas);
     const materialesInicial: Record<string, boolean> = {};
     Object.keys(grupos).forEach((material) => {
-      materialesInicial[material] = false;
+      // Only include non-tube materials for optimization
+      const materialData = materialInfo[material];
+      if (!materialData?.isTube) {
+        materialesInicial[material] = false;
+      }
     });
     setMaterialesConBetas(materialesInicial);
     setIsMultipleOptimization(true);
     setOpenOptimizeModal(true);
-  }, [cotizaciones, selectedRows]);
+  }, [cotizaciones, selectedRows, materialInfo]);
 
   // Memoized check if multiple selected
   const hasMultipleSelected = useMemo(() => 

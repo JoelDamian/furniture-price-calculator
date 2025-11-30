@@ -16,19 +16,22 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import { useMaterialStore, Material } from '../store/materialStore';
 import { MaterialItem } from '../models/Interfaces';
 import { saveMaterial, fetchMaterials, updateMaterialInFirestore } from '../services/materialService';
 
 // Initial form state
-const initialFormState: Omit<MaterialItem, 'precioM2'> = {
+const initialFormState: Omit<MaterialItem, 'precioM2' | 'precioML'> = {
   id: '',
   precioHoja: 0,
   med1: 0,
   med2: 0,
-  material: ''
+  material: '',
+  isTube: false
 };
 
 // Memoized Table Row Component
@@ -41,9 +44,10 @@ const MaterialRow = memo(({ item, onClick }: MaterialRowProps) => (
   <TableRow hover onClick={() => onClick(item.id)} sx={{ cursor: 'pointer' }}>
     <TableCell>{item.precioHoja}</TableCell>
     <TableCell>{item.med1}</TableCell>
-    <TableCell>{item.med2}</TableCell>
+    <TableCell>{item.isTube ? '-' : item.med2}</TableCell>
     <TableCell>{item.material}</TableCell>
-    <TableCell>{item.precioM2}</TableCell>
+    <TableCell>{item.isTube ? (item.precioML ?? 0) : item.precioM2}</TableCell>
+    <TableCell>{item.isTube ? 'Tubo' : 'Hoja'}</TableCell>
   </TableRow>
 ));
 
@@ -53,6 +57,11 @@ MaterialRow.displayName = 'MaterialRow';
 const calculatePrecioM2 = (precioHoja: number, med1: number, med2: number): number => {
   const area = med1 * med2;
   return area > 0 ? parseFloat((precioHoja / area).toFixed(6)) : 0;
+};
+
+// Helper function to calculate price per linear meter (for tubes)
+const calculatePrecioML = (precioHoja: number, med1: number): number => {
+  return med1 > 0 ? parseFloat((precioHoja / med1).toFixed(6)) : 0;
 };
 
 export const MelaminaMaterialsPage: React.FC = () => {
@@ -80,24 +89,31 @@ export const MelaminaMaterialsPage: React.FC = () => {
   }, [setMateriales]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setForm((prev) => ({
       ...prev,
-      [name]: name === 'material' ? value : parseFloat(value)
+      [name]: type === 'checkbox' ? checked : (name === 'material' ? value : parseFloat(value))
     }));
   }, []);
 
   const handleChangeModel = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setMaterial((prev) => ({
       ...prev,
-      [name]: name === 'material' ? value : parseFloat(value)
+      [name]: type === 'checkbox' ? checked : (name === 'material' ? value : parseFloat(value))
     }));
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    const precioM2 = calculatePrecioM2(form.precioHoja, form.med1, form.med2);
-    const nuevo = { ...form, precioM2 };
+    const isTube = form.isTube || false;
+    const precioM2 = isTube ? 0 : calculatePrecioM2(form.precioHoja, form.med1, form.med2);
+    const precioML = isTube ? calculatePrecioML(form.precioHoja, form.med1) : 0;
+    const nuevo = { 
+      ...form, 
+      precioM2, 
+      precioML,
+      med2: isTube ? 0 : form.med2 
+    };
 
     try {
       const generatedId = await saveMaterial(nuevo);
@@ -116,7 +132,8 @@ export const MelaminaMaterialsPage: React.FC = () => {
       precioHoja: item.precioHoja,
       med1: item.med1,
       med2: item.med2,
-      material: item.material
+      material: item.material,
+      isTube: item.isTube || false
     });
     setEditIndex(id);
     setEditOpen(true);
@@ -125,13 +142,17 @@ export const MelaminaMaterialsPage: React.FC = () => {
   const handleUpdate = useCallback(async () => {
     if (editIndex === null) return;
 
-    const precioM2 = calculatePrecioM2(material.precioHoja, material.med1, material.med2);
+    const isTube = material.isTube || false;
+    const precioM2 = isTube ? 0 : calculatePrecioM2(material.precioHoja, material.med1, material.med2);
+    const precioML = isTube ? calculatePrecioML(material.precioHoja, material.med1) : 0;
     const actualizado = {
       precioHoja: material.precioHoja,
       med1: material.med1,
-      med2: material.med2,
+      med2: isTube ? 0 : material.med2,
       material: material.material,
-      precioM2
+      precioM2,
+      precioML,
+      isTube
     };
 
     try {
@@ -151,10 +172,14 @@ export const MelaminaMaterialsPage: React.FC = () => {
     setForm(initialFormState);
   }, []);
 
-  // Memoized calculated precioM2 for form display
+  // Memoized calculated precioM2/precioML for form display
   const formPrecioM2 = useMemo(() => 
-    calculatePrecioM2(form.precioHoja, form.med1, form.med2)
-  , [form.precioHoja, form.med1, form.med2]);
+    form.isTube ? 0 : calculatePrecioM2(form.precioHoja, form.med1, form.med2)
+  , [form.precioHoja, form.med1, form.med2, form.isTube]);
+
+  const formPrecioML = useMemo(() => 
+    form.isTube ? calculatePrecioML(form.precioHoja, form.med1) : 0
+  , [form.precioHoja, form.med1, form.isTube]);
 
   // Memoized table rows
   const tableRows = useMemo(() => 
@@ -173,10 +198,22 @@ export const MelaminaMaterialsPage: React.FC = () => {
         Crear Material de Melamina
       </Typography>
       <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                name="isTube"
+                checked={form.isTube || false}
+                onChange={handleChange}
+              />
+            }
+            label="Es Tubo (metro lineal)"
+          />
+        </Grid>
         <Grid item xs={12} sm={6} md={4}>
           <TextField
             fullWidth
-            label="PRECIO HOJA"
+            label={form.isTube ? "PRECIO TUBO" : "PRECIO HOJA"}
             name="precioHoja"
             value={form.precioHoja}
             onChange={handleChange}
@@ -186,23 +223,25 @@ export const MelaminaMaterialsPage: React.FC = () => {
         <Grid item xs={12} sm={6} md={4}>
           <TextField
             fullWidth
-            label="MED1"
+            label={form.isTube ? "LARGO (m)" : "MED1"}
             name="med1"
             value={form.med1}
             onChange={handleChange}
             type="number"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <TextField
-            fullWidth
-            label="MED2"
-            name="med2"
-            value={form.med2}
-            onChange={handleChange}
-            type="number"
-          />
-        </Grid>
+        {!form.isTube && (
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              label="MED2"
+              name="med2"
+              value={form.med2}
+              onChange={handleChange}
+              type="number"
+            />
+          </Grid>
+        )}
         <Grid item xs={12} sm={6} md={4}>
           <TextField
             fullWidth
@@ -215,8 +254,8 @@ export const MelaminaMaterialsPage: React.FC = () => {
         <Grid item xs={12} sm={6} md={4}>
           <TextField
             fullWidth
-            label="P/M2"
-            value={formPrecioM2}
+            label={form.isTube ? "P/ML" : "P/M2"}
+            value={form.isTube ? formPrecioML : formPrecioM2}
             InputProps={{ readOnly: true }}
           />
         </Grid>
@@ -234,11 +273,12 @@ export const MelaminaMaterialsPage: React.FC = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>PRECIO HOJA</TableCell>
+              <TableCell>PRECIO</TableCell>
               <TableCell>MED1</TableCell>
               <TableCell>MED2</TableCell>
               <TableCell>MATERIAL</TableCell>
-              <TableCell>P/M2</TableCell>
+              <TableCell>P/M2 o P/ML</TableCell>
+              <TableCell>TIPO</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -251,10 +291,22 @@ export const MelaminaMaterialsPage: React.FC = () => {
         <DialogTitle>Editar Material</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    name="isTube"
+                    checked={material.isTube || false}
+                    onChange={handleChangeModel}
+                  />
+                }
+                label="Es Tubo (metro lineal)"
+              />
+            </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="PRECIO HOJA"
+                label={material.isTube ? "PRECIO TUBO" : "PRECIO HOJA"}
                 name="precioHoja"
                 value={material.precioHoja}
                 onChange={handleChangeModel}
@@ -264,23 +316,25 @@ export const MelaminaMaterialsPage: React.FC = () => {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="MED1"
+                label={material.isTube ? "LARGO (m)" : "MED1"}
                 name="med1"
                 value={material.med1}
                 onChange={handleChangeModel}
                 type="number"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="MED2"
-                name="med2"
-                value={material.med2}
-                onChange={handleChangeModel}
-                type="number"
-              />
-            </Grid>
+            {!material.isTube && (
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="MED2"
+                  name="med2"
+                  value={material.med2}
+                  onChange={handleChangeModel}
+                  type="number"
+                />
+              </Grid>
+            )}
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth

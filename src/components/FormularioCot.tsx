@@ -93,7 +93,13 @@ export const FormCotizacion: React.FC = () => {
     const [editOpen, setEditOpen] = useState<boolean>(false);
 
     // Memoized calculations
-    const calcularPrecioUnitario = useCallback((ancho: number, largo: number, precioM2: number) => {
+    const calcularPrecioUnitario = useCallback((ancho: number, largo: number, precioM2: number, isTube?: boolean, precioML?: number) => {
+        if (isTube) {
+            // For tubes, calculate based on linear meter (only use largo)
+            const precio = precioML ?? 0;
+            return parseFloat((precio).toFixed(2));
+        }
+        // For sheets, calculate based on area (m2)
         const area = ancho * largo;
         return parseFloat((area * precioM2).toFixed(2));
     }, []);
@@ -102,16 +108,24 @@ export const FormCotizacion: React.FC = () => {
         return cantidad * (ancho * atc + largo * ltc);
     }, []);
 
-    // Sync precioM2 from materials when material changes
+    // Sync precioM2/precioML from materials when material changes
     useEffect(() => {
         const selected = materiales.find((m) => m.material === form.material);
         if (selected) {
             setForm((prev) => ({
                 ...prev,
-                precioM2: selected.precioM2
+                // For tubes, store precioML in precioM2 field for display purposes
+                precioM2: selected.isTube ? (selected.precioML || 0) : selected.precioM2
             }));
         }
     }, [form.material, materiales]);
+
+    // Get selected material info for UI display
+    const selectedMaterial = useMemo(() => 
+        materiales.find((m) => m.material === form.material)
+    , [form.material, materiales]);
+    
+    const isTubeMaterial = selectedMaterial?.isTube || false;
 
     // Auto-fill width/height based on furniture type and piece
     useEffect(() => {
@@ -167,7 +181,10 @@ export const FormCotizacion: React.FC = () => {
     }, []);
 
     const handleAddItem = useCallback(() => {
-        const precioUnitario = calcularPrecioUnitario(form.ancho, form.largo, form.precioM2);
+        const selectedMaterial = materiales.find((m) => m.material === form.material);
+        const isTube = selectedMaterial?.isTube || false;
+        const precioML = selectedMaterial?.precioML || 0;
+        const precioUnitario = calcularPrecioUnitario(form.ancho, form.largo, form.precioM2, isTube, precioML);
         const precioTotal = parseFloat((precioUnitario * form.cantidad).toFixed(2));
         const tc = calcularTC(form.cantidad, form.ancho, form.largo, form.atc || 0, form.ltc || 0);
         const nuevoItem: EstanteItem = {
@@ -179,7 +196,7 @@ export const FormCotizacion: React.FC = () => {
         };
         addItem(nuevoItem);
         setForm(initialFormState);
-    }, [form, calcularPrecioUnitario, calcularTC, addItem]);
+    }, [form, materiales, calcularPrecioUnitario, calcularTC, addItem]);
 
     const handleRowClick = useCallback((id: string) => {
         const item = items.find(i => i.id === id);
@@ -201,7 +218,10 @@ export const FormCotizacion: React.FC = () => {
 
     const handleUpdateItem = useCallback(() => {
         if (editIndex === null) return;
-        const precioUnitario = calcularPrecioUnitario(form.ancho, form.largo, form.precioM2);
+        const selectedMaterial = materiales.find((m) => m.material === form.material);
+        const isTube = selectedMaterial?.isTube || false;
+        const precioML = selectedMaterial?.precioML || 0;
+        const precioUnitario = calcularPrecioUnitario(form.ancho, form.largo, form.precioM2, isTube, precioML);
         const precioTotal = parseFloat((precioUnitario * form.cantidad).toFixed(2));
         const tc = calcularTC(form.cantidad, form.ancho, form.largo, form.atc || 0, form.ltc || 0);
         const updatedItem: EstanteItem = {
@@ -214,7 +234,7 @@ export const FormCotizacion: React.FC = () => {
         updateItem(editIndex, updatedItem);
         setEditOpen(false);
         setEditIndex(null);
-    }, [editIndex, form, calcularPrecioUnitario, calcularTC, updateItem]);
+    }, [editIndex, form, materiales, calcularPrecioUnitario, calcularTC, updateItem]);
 
     const handleDelete = useCallback((id: string) => {
         deleteItem(id);
@@ -258,7 +278,10 @@ export const FormCotizacion: React.FC = () => {
                 }
             }
 
-            const precioUnitario = calcularPrecioUnitario(nuevasAncho, nuevoLargo, item.precioM2);
+            const selectedMaterial = materiales.find((m) => m.material === item.material);
+            const isTube = selectedMaterial?.isTube || false;
+            const precioML = selectedMaterial?.precioML || 0;
+            const precioUnitario = calcularPrecioUnitario(nuevasAncho, nuevoLargo, item.precioM2, isTube, precioML);
             const precioTotal = parseFloat((precioUnitario * item.cantidad).toFixed(2));
             const tc = calcularTC(item.cantidad, nuevasAncho, nuevoLargo, item.atc || 0, item.ltc || 0);
 
@@ -272,7 +295,7 @@ export const FormCotizacion: React.FC = () => {
             };
         });
         addListItem(updatedItems);
-    }, [dimensiones, items, furnitureType, calcularPrecioUnitario, calcularTC, addListItem]);
+    }, [dimensiones, items, furnitureType, materiales, calcularPrecioUnitario, calcularTC, addListItem]);
 
     // Memoized material options for Select
     const materialOptions = useMemo(() => 
@@ -423,7 +446,7 @@ export const FormCotizacion: React.FC = () => {
                 <Grid item xs={12} sm={6} md={3}>
                     <TextField
                         fullWidth
-                        label="P/M2"
+                        label={isTubeMaterial ? "P/ML" : "P/M2"}
                         name="precioM2"
                         value={form.precioM2}
                         InputProps={{ readOnly: true }}
