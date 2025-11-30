@@ -196,6 +196,47 @@ export const CotizacionesList: React.FC = () => {
     setMaterialesConBetas({});
   }, []);
 
+  // Calculate tube requirements
+  const calcularTubos = useCallback((grupos: Record<string, import('../models/Interfaces').EstanteItem[]>) => {
+    const tubeResults: { material: string; totalLargo: number; tubeLength: number; tubosNecesarios: number; piezas: { pieza: string; largo: number; cantidad: number }[] }[] = [];
+
+    Object.entries(grupos).forEach(([material, piezas]) => {
+      const materialData = materialInfo[material];
+      
+      if (!materialData || !materialData.isTube) {
+        return;
+      }
+
+      const tubeLength = materialData.med1; // Length of one tube
+      let totalLargo = 0;
+      const piezasInfo: { pieza: string; largo: number; cantidad: number }[] = [];
+
+      piezas.forEach((pieza) => {
+        // For tubes, use largo if non-zero, otherwise use ancho (user might enter length in either field)
+        const piezaLargo = pieza.largo > 0 ? pieza.largo : pieza.ancho;
+        const largoTotal = piezaLargo * pieza.cantidad;
+        totalLargo += largoTotal;
+        piezasInfo.push({
+          pieza: pieza.pieza,
+          largo: piezaLargo,
+          cantidad: pieza.cantidad
+        });
+      });
+
+      const tubosNecesarios = Math.ceil(totalLargo / tubeLength);
+
+      tubeResults.push({
+        material,
+        totalLargo,
+        tubeLength,
+        tubosNecesarios,
+        piezas: piezasInfo
+      });
+    });
+
+    return tubeResults;
+  }, [materialInfo]);
+
   const handleConfirmOptimize = useCallback(() => {
     if (isMultipleOptimization) {
       // Multiple cotizaciones optimization
@@ -207,6 +248,9 @@ export const CotizacionesList: React.FC = () => {
       const grupos = agruparPiezasPorMaterialDeVariasCotizaciones(seleccionadas);
       const resultadosTotales: { material: string; resultado: ReturnType<typeof optimizarMelamina> }[] = [];
 
+      // Calculate tube requirements
+      const tubosRequeridos = calcularTubos(grupos);
+
       Object.entries(grupos).forEach(([material, piezas]) => {
         const materialData = materialInfo[material];
 
@@ -232,7 +276,7 @@ export const CotizacionesList: React.FC = () => {
       setOpenOptimizeModal(false);
       setCotizacionToOptimize(null);
       setMaterialesConBetas({});
-      navigate("/planos", { state: { planos: resultadosTotales } });
+      navigate("/planos", { state: { planos: resultadosTotales, tubos: tubosRequeridos } });
     } else {
       // Single cotizacion optimization
       if (!cotizacionToOptimize) return;
@@ -240,6 +284,9 @@ export const CotizacionesList: React.FC = () => {
       const grupos = agruparPiezasPorMaterial(cotizacionToOptimize);
       const resultadosTotales: { material: string; resultado: ReturnType<typeof optimizarMelamina> }[] = [];
 
+      // Calculate tube requirements
+      const tubosRequeridos = calcularTubos(grupos);
+
       Object.entries(grupos).forEach(([material, piezas]) => {
         const materialData = materialInfo[material];
 
@@ -265,9 +312,9 @@ export const CotizacionesList: React.FC = () => {
       setOpenOptimizeModal(false);
       setCotizacionToOptimize(null);
       setMaterialesConBetas({});
-      navigate("/planos", { state: { planos: resultadosTotales } });
+      navigate("/planos", { state: { planos: resultadosTotales, tubos: tubosRequeridos } });
     }
-  }, [isMultipleOptimization, cotizaciones, selectedRows, cotizacionToOptimize, materialInfo, materialesConBetas, navigate]);
+  }, [isMultipleOptimization, cotizaciones, selectedRows, cotizacionToOptimize, materialInfo, materialesConBetas, calcularTubos, navigate]);
 
   const handleOptimizarVariasClick = useCallback(() => {
     if (!cotizaciones) return;

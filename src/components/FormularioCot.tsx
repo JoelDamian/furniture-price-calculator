@@ -97,7 +97,7 @@ export const FormCotizacion: React.FC = () => {
         if (isTube) {
             // For tubes, calculate based on linear meter (only use largo)
             const precio = precioML ?? 0;
-            return parseFloat((precio).toFixed(2));
+            return parseFloat((largo * precio).toFixed(2));
         }
         // For sheets, calculate based on area (m2)
         const area = ancho * largo;
