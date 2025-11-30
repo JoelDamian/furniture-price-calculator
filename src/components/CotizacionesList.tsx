@@ -16,7 +16,10 @@ import {
   DialogContentText,
   DialogActions,
   TextField,
-  Checkbox
+  Checkbox,
+  FormControlLabel,
+  List,
+  ListItem
 } from '@mui/material';
 import { Cotizacion, MaterialItem } from '../models/Interfaces';
 import { fetchCotizaciones, deleteCotizacionInFirestore } from '../services/cotizacionService';
@@ -83,6 +86,12 @@ export const CotizacionesList: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
+  
+  // State for optimization modal
+  const [openOptimizeModal, setOpenOptimizeModal] = useState(false);
+  const [cotizacionToOptimize, setCotizacionToOptimize] = useState<Cotizacion | null>(null);
+  const [materialesConBetas, setMaterialesConBetas] = useState<Record<string, boolean>>({});
+  const [isMultipleOptimization, setIsMultipleOptimization] = useState(false);
 
   // Store selectors
   const addListItem = useCotizacionStore((state) => state.addListItem);
@@ -157,54 +166,110 @@ export const CotizacionesList: React.FC = () => {
     );
   }, []);
 
-  const handleOptimizar = useCallback((cotizacion: Cotizacion) => {
+  const handleOptimizarClick = useCallback((cotizacion: Cotizacion) => {
+    // Get materials from this cotizacion
     const grupos = agruparPiezasPorMaterial(cotizacion);
-    const resultadosTotales: { material: string; resultado: ReturnType<typeof optimizarMelamina> }[] = [];
-
-    Object.entries(grupos).forEach(([material, piezas]) => {
-      const materialData = materialInfo[material];
-
-      if (!materialData) {
-        console.error(`❌ No existe información para el material: ${material}`);
-        return;
-      }
-
-      const resultado = optimizarMelamina(materialData, piezas);
-      resultadosTotales.push({
-        material,
-        resultado,
-      });
+    const materialesInicial: Record<string, boolean> = {};
+    Object.keys(grupos).forEach((material) => {
+      materialesInicial[material] = false;
     });
+    setMaterialesConBetas(materialesInicial);
+    setCotizacionToOptimize(cotizacion);
+    setIsMultipleOptimization(false);
+    setOpenOptimizeModal(true);
+  }, []);
 
-    navigate("/planos", { state: { planos: resultadosTotales } });
-  }, [materialInfo, navigate]);
+  const handleToggleBeta = useCallback((material: string) => {
+    setMaterialesConBetas((prev) => ({
+      ...prev,
+      [material]: !prev[material],
+    }));
+  }, []);
 
-  const handleOptimizarVarias = useCallback(() => {
+  const handleCancelOptimize = useCallback(() => {
+    setOpenOptimizeModal(false);
+    setCotizacionToOptimize(null);
+    setMaterialesConBetas({});
+  }, []);
+
+  const handleConfirmOptimize = useCallback(() => {
+    if (isMultipleOptimization) {
+      // Multiple cotizaciones optimization
+      if (!cotizaciones) return;
+
+      const seleccionadas = cotizaciones.filter((c) =>
+        selectedRows.includes(c.id)
+      );
+      const grupos = agruparPiezasPorMaterialDeVariasCotizaciones(seleccionadas);
+      const resultadosTotales: { material: string; resultado: ReturnType<typeof optimizarMelamina> }[] = [];
+
+      Object.entries(grupos).forEach(([material, piezas]) => {
+        const materialData = materialInfo[material];
+
+        if (!materialData) {
+          console.error(`❌ No existe información para el material: ${material}`);
+          return;
+        }
+
+        // If material has betas, don't allow rotation (rotate = false)
+        const allowRotation = !materialesConBetas[material];
+        const resultado = optimizarMelamina(materialData, piezas, allowRotation);
+        resultadosTotales.push({
+          material,
+          resultado,
+        });
+      });
+
+      setOpenOptimizeModal(false);
+      setCotizacionToOptimize(null);
+      setMaterialesConBetas({});
+      navigate("/planos", { state: { planos: resultadosTotales } });
+    } else {
+      // Single cotizacion optimization
+      if (!cotizacionToOptimize) return;
+
+      const grupos = agruparPiezasPorMaterial(cotizacionToOptimize);
+      const resultadosTotales: { material: string; resultado: ReturnType<typeof optimizarMelamina> }[] = [];
+
+      Object.entries(grupos).forEach(([material, piezas]) => {
+        const materialData = materialInfo[material];
+
+        if (!materialData) {
+          console.error(`❌ No existe información para el material: ${material}`);
+          return;
+        }
+
+        // If material has betas, don't allow rotation (rotate = false)
+        const allowRotation = !materialesConBetas[material];
+        const resultado = optimizarMelamina(materialData, piezas, allowRotation);
+        resultadosTotales.push({
+          material,
+          resultado,
+        });
+      });
+
+      setOpenOptimizeModal(false);
+      setCotizacionToOptimize(null);
+      setMaterialesConBetas({});
+      navigate("/planos", { state: { planos: resultadosTotales } });
+    }
+  }, [isMultipleOptimization, cotizaciones, selectedRows, cotizacionToOptimize, materialInfo, materialesConBetas, navigate]);
+
+  const handleOptimizarVariasClick = useCallback(() => {
     if (!cotizaciones) return;
 
     const seleccionadas = cotizaciones.filter((c) =>
       selectedRows.includes(c.id)
     );
     const grupos = agruparPiezasPorMaterialDeVariasCotizaciones(seleccionadas);
-    const resultadosTotales: { material: string; resultado: ReturnType<typeof optimizarMelamina> }[] = [];
-
-    Object.entries(grupos).forEach(([material, piezas]) => {
-      const materialData = materialInfo[material];
-
-      if (!materialData) {
-        console.error(`❌ No existe información para el material: ${material}`);
-        return;
-      }
-
-      const resultado = optimizarMelamina(materialData, piezas);
-      resultadosTotales.push({
-        material,
-        resultado,
-      });
+    const materialesInicial: Record<string, boolean> = {};
+    Object.keys(grupos).forEach((material) => {
+      materialesInicial[material] = false;
     });
-
-    navigate("/planos", { state: { planos: resultadosTotales } });
-  }, [cotizaciones, selectedRows, materialInfo, navigate]);
+    setMaterialesConBetas(materialesInicial);
+    setIsMultipleOptimization(true);
+    setOpenOptimizeModal(true);
+  }, [cotizaciones, selectedRows]);
 
   // Memoized check if multiple selected
   const hasMultipleSelected = useMemo(() => 
@@ -220,11 +285,11 @@ export const CotizacionesList: React.FC = () => {
         isSelected={selectedRows.includes(c.id)}
         onToggleSelect={toggleSelect}
         onEdit={handleRowClick}
-        onOptimize={handleOptimizar}
+        onOptimize={handleOptimizarClick}
         onDelete={handleDeleteClick}
       />
     ))
-  , [filteredCotizaciones, selectedRows, toggleSelect, handleRowClick, handleOptimizar, handleDeleteClick]);
+  , [filteredCotizaciones, selectedRows, toggleSelect, handleRowClick, handleOptimizarClick, handleDeleteClick]);
 
   return (
     <Container sx={{ py: 4 }}>
@@ -244,7 +309,7 @@ export const CotizacionesList: React.FC = () => {
           variant="contained"
           color="secondary"
           sx={{ mt: 2 }}
-          onClick={handleOptimizarVarias}
+          onClick={handleOptimizarVariasClick}
         >
           Generar Optimización
         </Button>
@@ -269,7 +334,7 @@ export const CotizacionesList: React.FC = () => {
         </Table>
       </TableContainer>
 
-      {/* Modal de confirmación */}
+      {/* Modal de confirmación de eliminación */}
       <Dialog open={open} onClose={handleCancelDelete}>
         <DialogTitle>¿Eliminar cotización?</DialogTitle>
         <DialogContent>
@@ -280,6 +345,37 @@ export const CotizacionesList: React.FC = () => {
         <DialogActions>
           <Button onClick={handleCancelDelete}>Cancelar</Button>
           <Button onClick={handleConfirmDelete} color="error">Eliminar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Modal de optimización con selección de betas */}
+      <Dialog open={openOptimizeModal} onClose={handleCancelOptimize}>
+        <DialogTitle>Configuración de Optimización</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Selecciona los materiales que tienen betas (vetas). Los materiales con betas no se rotarán durante la optimización.
+          </DialogContentText>
+          <List>
+            {Object.keys(materialesConBetas).map((material) => (
+              <ListItem key={material} disablePadding>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={materialesConBetas[material]}
+                      onChange={() => handleToggleBeta(material)}
+                    />
+                  }
+                  label={`${material} - ¿Tiene betas?`}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelOptimize}>Cancelar</Button>
+          <Button onClick={handleConfirmOptimize} color="primary" variant="contained">
+            Optimizar
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>

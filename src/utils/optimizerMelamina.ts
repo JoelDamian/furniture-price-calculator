@@ -6,7 +6,8 @@ const toM = (mm: number) => mm / 1000;
 
 export function optimizarMelamina(
   material: MaterialItem,
-  piezas: EstanteItem[]
+  piezas: EstanteItem[],
+  allowRotation: boolean = true
 ) {
   const widthMM = toMM(material.med1);
   const heightMM = toMM(material.med2);
@@ -19,7 +20,7 @@ export function optimizarMelamina(
       smart: false, // OK
       pot: false,
       square: false,
-      allowRotation: true // OK
+      allowRotation: allowRotation
     }
   );
 
