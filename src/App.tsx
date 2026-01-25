@@ -13,6 +13,7 @@ import { useAccessoryGlobalStore } from './store/accessoryGlobalStore';
 import { fetchAccessories } from './services/accessoriesService';
 import { ResponsiveAppBar } from './components/ResponsiveAppBar';
 import { PlanosPage } from './components/Cortes/PlanosPage';
+import { GlobalLoadingOverlay } from './components/GlobalLoadingOverlay';
 
 // Create theme with pink as primary color
 const theme = createTheme({
@@ -52,6 +53,7 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <Router>
+        <GlobalLoadingOverlay />
         <ResponsiveAppBar />
         <Container sx={{ mt: 4 }}>
           <Routes>

@@ -3,9 +3,12 @@ import { Typography, Button, Container, TextField, Box } from '@mui/material';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import { useAuthStore } from '../store/authStore';
+import { useLoadingStore } from '../store/loadingStore';
 
 export const Login: React.FC = () => {
   const login = useAuthStore((state) => state.login);
+  const startLoading = useLoadingStore((state) => state.startLoading);
+  const stopLoading = useLoadingStore((state) => state.stopLoading);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -20,14 +23,17 @@ export const Login: React.FC = () => {
 
   const handleLogin = useCallback(async () => {
     try {
+      startLoading();
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       login(user.uid);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       setError('Error al iniciar sesión: ' + errorMessage);
+    } finally {
+      stopLoading();
     }
-  }, [email, password, login]);
+  }, [email, password, login, startLoading, stopLoading]);
 
   return (
     <Container sx={{ mt: 10 }}>

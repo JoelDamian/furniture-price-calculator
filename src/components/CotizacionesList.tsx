@@ -22,7 +22,7 @@ import {
   ListItem
 } from '@mui/material';
 import { Cotizacion, MaterialItem } from '../models/Interfaces';
-import { fetchCotizaciones, deleteCotizacionInFirestore } from '../services/cotizacionService';
+import { fetchCotizaciones, deleteCotizacionInFirestore, saveCotizacion } from '../services/cotizacionService';
 import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
@@ -30,6 +30,7 @@ import { useNavigate } from 'react-router-dom';
 import { agruparPiezasPorMaterial, agruparPiezasPorMaterialDeVariasCotizaciones } from '../utils/groupByMaterial';
 import { optimizarMelamina } from "../utils/optimizerMelamina";
 import { useMaterialStore } from '../store/materialStore';
+import { DuplicateCotizacionDialog } from './DuplicateCotizacionDialog';
 
 // Memoized Table Row Component
 interface CotizacionRowProps {
@@ -37,6 +38,7 @@ interface CotizacionRowProps {
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
   onEdit: (cotizacion: Cotizacion) => void;
+  onDuplicate: (cotizacion: Cotizacion) => void;
   onOptimize: (cotizacion: Cotizacion) => void;
   onDelete: (cotizacion: Cotizacion) => void;
 }
@@ -46,6 +48,7 @@ const CotizacionRow = memo(({
   isSelected, 
   onToggleSelect, 
   onEdit, 
+  onDuplicate,
   onOptimize, 
   onDelete 
 }: CotizacionRowProps) => (
@@ -63,6 +66,7 @@ const CotizacionRow = memo(({
     <TableCell>{cotizacion.precioVentaConIva.toFixed(2)}</TableCell>
     <TableCell>
       <Button onClick={() => onEdit(cotizacion)}>Editar</Button>
+      <Button onClick={() => onDuplicate(cotizacion)} color="secondary">Duplicar</Button>
       <Button onClick={() => onOptimize(cotizacion)} color="primary">Optimizar</Button>
       <Button color="error" onClick={() => onDelete(cotizacion)}>Eliminar</Button>
     </TableCell>
@@ -84,6 +88,8 @@ export const CotizacionesList: React.FC = () => {
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[] | undefined>([]);
   const [selectedCotizacion, setSelectedCotizacion] = useState<Cotizacion | null>(null);
   const [open, setOpen] = useState(false);
+  const [openDuplicate, setOpenDuplicate] = useState(false);
+  const [cotizacionToDuplicate, setCotizacionToDuplicate] = useState<Cotizacion | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   
@@ -133,6 +139,45 @@ export const CotizacionesList: React.FC = () => {
   const handleDeleteClick = useCallback((cotizacion: Cotizacion) => {
     setSelectedCotizacion(cotizacion);
     setOpen(true);
+  }, []);
+
+  const handleDuplicateRequest = useCallback((cotizacion: Cotizacion) => {
+    setCotizacionToDuplicate(cotizacion);
+    setOpenDuplicate(true);
+  }, []);
+
+  const handleConfirmDuplicate = useCallback(async () => {
+    if (!cotizacionToDuplicate) return;
+
+    try {
+      const duplicated: Cotizacion = {
+        ...cotizacionToDuplicate,
+        id: '',
+        nombre: `Copy ${cotizacionToDuplicate.nombre}`,
+      };
+
+      const newId = await saveCotizacion(duplicated);
+
+      if (newId) {
+        setCotizaciones((prev) => {
+          const next = prev ?? [];
+          return [{ ...duplicated, id: newId }, ...next];
+        });
+      } else {
+        const datos = await fetchCotizaciones();
+        setCotizaciones(datos);
+      }
+    } catch (error) {
+      console.error('Error duplicando la cotización:', error);
+    } finally {
+      setOpenDuplicate(false);
+      setCotizacionToDuplicate(null);
+    }
+  }, [cotizacionToDuplicate]);
+
+  const handleCancelDuplicate = useCallback(() => {
+    setOpenDuplicate(false);
+    setCotizacionToDuplicate(null);
   }, []);
 
   const handleConfirmDelete = useCallback(async () => {
@@ -350,11 +395,12 @@ export const CotizacionesList: React.FC = () => {
         isSelected={selectedRows.includes(c.id)}
         onToggleSelect={toggleSelect}
         onEdit={handleRowClick}
+        onDuplicate={handleDuplicateRequest}
         onOptimize={handleOptimizarClick}
         onDelete={handleDeleteClick}
       />
     ))
-  , [filteredCotizaciones, selectedRows, toggleSelect, handleRowClick, handleOptimizarClick, handleDeleteClick]);
+  , [filteredCotizaciones, selectedRows, toggleSelect, handleRowClick, handleDuplicateRequest, handleOptimizarClick, handleDeleteClick]);
 
   return (
     <Container sx={{ py: 4 }}>
@@ -412,6 +458,12 @@ export const CotizacionesList: React.FC = () => {
           <Button onClick={handleConfirmDelete} color="error">Eliminar</Button>
         </DialogActions>
       </Dialog>
+
+      <DuplicateCotizacionDialog
+        open={openDuplicate}
+        onCancel={handleCancelDuplicate}
+        onConfirm={handleConfirmDuplicate}
+      />
 
       {/* Modal de optimización con selección de betas */}
       <Dialog open={openOptimizeModal} onClose={handleCancelOptimize}>
