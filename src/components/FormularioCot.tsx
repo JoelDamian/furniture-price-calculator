@@ -77,7 +77,11 @@ const TableRowItem = memo(({ item, onEdit, onDelete }: TableRowItemProps) => (
 
 TableRowItem.displayName = 'TableRowItem';
 
-export const FormCotizacion: React.FC = () => {
+interface FormCotizacionProps {
+    isEdit?: boolean;
+}
+
+export const FormCotizacion: React.FC<FormCotizacionProps> = ({ isEdit = false }) => {
     const materiales = useMaterialStore((state) => state.materiales);
     const items = useCotizacionStore((state) => state.items);
     const dimensiones = useCotizacionStore((state) => state.dimensiones);
@@ -244,6 +248,26 @@ export const FormCotizacion: React.FC = () => {
         setEditOpen(false);
     }, []);
 
+    const handleActualizarCostos = useCallback(() => {
+        const updatedItems = items.map((item) => {
+            const selectedMaterial = materiales.find((m) => m.material === item.material);
+            const isTube = selectedMaterial?.isTube || false;
+            const precioML = selectedMaterial?.precioML || 0;
+            const precioM2FromMaterial = selectedMaterial ? (selectedMaterial.isTube ? (selectedMaterial.precioML || 0) : selectedMaterial.precioM2) : item.precioM2;
+            const precioUnitario = calcularPrecioUnitario(item.ancho, item.largo, precioM2FromMaterial, isTube, precioML);
+            const precioTotal = parseFloat((precioUnitario * item.cantidad).toFixed(2));
+            const tc = calcularTC(item.cantidad, item.ancho, item.largo, item.atc || 0, item.ltc || 0);
+            return {
+                ...item,
+                precioM2: precioM2FromMaterial,
+                precioUnitario,
+                precioTotal,
+                tc
+            };
+        });
+        addListItem(updatedItems);
+    }, [items, materiales, calcularPrecioUnitario, calcularTC, addListItem]);
+
     const handleActualizarMedidas = useCallback(() => {
         const { ancho, alto, profundidad } = dimensiones;
         const updatedItems = items.map((item) => {
@@ -369,7 +393,7 @@ export const FormCotizacion: React.FC = () => {
                         onChange={handleDimensionesChange}
                     />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid item xs={12} sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                     <Button
                         variant="contained"
                         color="primary"
@@ -377,6 +401,15 @@ export const FormCotizacion: React.FC = () => {
                     >
                         Actualizar medidas de piezas
                     </Button>
+                    {isEdit && (
+                        <Button
+                            variant="outlined"
+                            color="primary"
+                            onClick={handleActualizarCostos}
+                        >
+                            Actualizar Costos
+                        </Button>
+                    )}
                 </Grid>
             </Grid>
 

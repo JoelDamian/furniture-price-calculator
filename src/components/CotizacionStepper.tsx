@@ -80,7 +80,7 @@ export const CotizacionStepper: React.FC = () => {
   const stepContent = useMemo(() => {
     switch (activeStep) {
       case 0:
-        return <MemoizedFormCotizacion />;
+        return <MemoizedFormCotizacion isEdit={isEdit} />;
       case 1:
         return <MemoizedAccessorysPage />;
       case 2:
