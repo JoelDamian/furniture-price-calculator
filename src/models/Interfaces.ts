@@ -71,3 +71,25 @@ export interface HojaCorte {
   height: number;  // en metros
   piezas: PiezaColocada[];
 }
+
+export interface FinanzaLineItem {
+  name: string;
+  cost: string;
+  cantidad: string;
+}
+
+export interface Finanza {
+  id: string;
+  name: string;
+  idOrg: number;
+  onAccount: number;
+  discount: number;
+  sellItems: FinanzaLineItem[];
+  expenseItems: FinanzaLineItem[];
+  costoFinal: number;
+  saldo: number;
+  gastoTotal: number;
+  ganancia: number;
+  createdAt: string;
+  finishedAt: string | null;
+}

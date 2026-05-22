@@ -13,9 +13,10 @@ import {
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
+import { canAccessFinanzas } from '../constants/finanzasAccess';
 
-// Navigation items configuration
-const navItems = [
+const baseNavItems = [
   { label: 'Materiales', path: '/material' },
   { label: 'Accesorios', path: '/accesorios' },
   { label: 'Lista de Cotizaciones', path: '/lista-cotizaciones' },
@@ -24,6 +25,15 @@ const navItems = [
 
 export const ResponsiveAppBar: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const userEmail = useAuthStore((state) => state.userEmail);
+
+  const navItems = useMemo(() => {
+    const items = [...baseNavItems];
+    if (canAccessFinanzas(userEmail)) {
+      items.push({ label: 'Finanzas', path: '/finanzas' });
+    }
+    return items;
+  }, [userEmail]);
 
   const handleDrawerToggle = useCallback(() => {
     setMobileOpen((prev) => !prev);
@@ -41,7 +51,7 @@ export const ResponsiveAppBar: React.FC = () => {
         ))}
       </List>
     </Box>
-  ), [handleDrawerToggle]);
+  ), [handleDrawerToggle, navItems]);
 
   // Memoized desktop navigation buttons
   const desktopNavButtons = useMemo(() => (
@@ -55,7 +65,7 @@ export const ResponsiveAppBar: React.FC = () => {
         {item.label}
       </Button>
     ))
-  ), []);
+  ), [navItems]);
 
   return (
     <Box sx={{ flexGrow: 1 }}>

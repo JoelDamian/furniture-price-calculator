@@ -14,6 +14,8 @@ import { fetchAccessories } from './services/accessoriesService';
 import { ResponsiveAppBar } from './components/ResponsiveAppBar';
 import { PlanosPage } from './components/Cortes/PlanosPage';
 import { GlobalLoadingOverlay } from './components/GlobalLoadingOverlay';
+import { FinanzasPage } from './components/FinanzasPage';
+import { canAccessFinanzas } from './constants/finanzasAccess';
 
 // Create theme with pink as primary color
 const theme = createTheme({
@@ -29,6 +31,7 @@ const theme = createTheme({
 function App() {
   // Use single selector to avoid multiple subscriptions
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const userEmail = useAuthStore((state) => state.userEmail);
   const restoreSession = useAuthStore((state) => state.restoreSession);
   const addListAccessories = useAccessoryGlobalStore((state) => state.addListAccessories);
 
@@ -74,6 +77,11 @@ function App() {
             } />
             <Route path="/planos" element={
               isAuthenticated ? <PlanosPage /> : <Navigate to="/" />
+            } />
+            <Route path="/finanzas" element={
+              isAuthenticated && canAccessFinanzas(userEmail)
+                ? <FinanzasPage />
+                : <Navigate to={isAuthenticated ? '/material' : '/'} />
             } />
           </Routes>
         </Container>

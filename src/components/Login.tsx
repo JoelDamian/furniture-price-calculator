@@ -26,7 +26,7 @@ export const Login: React.FC = () => {
       startLoading();
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      login(user.uid);
+      login(user.uid, user.email ?? '');
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       setError('Error al iniciar sesión: ' + errorMessage);
