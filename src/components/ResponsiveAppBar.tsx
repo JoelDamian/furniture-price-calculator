@@ -11,6 +11,7 @@ import {
   ListItemIcon,
   ListItemText,
   Box,
+  Tooltip,
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { Link, useNavigate } from 'react-router-dom';
@@ -26,7 +27,8 @@ const baseNavItems = [
   { label: 'Crear Cotizacion', path: '/cotizacion' },
 ];
 
-const getEmailInitial = (email: string): string => {
+const getEmailInitial = (email: string | null): string => {
+  if (!email) return '?';
   const localPart = email.split('@')[0]?.trim();
   return (localPart?.[0] ?? '?').toUpperCase();
 };
@@ -75,76 +77,91 @@ export const ResponsiveAppBar: React.FC = () => {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Gestor de Materiales
           </Typography>
-          {isAuthenticated && userEmail && (
-            <>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Tooltip title="Cerrar sesión">
               <IconButton
-                onClick={handleMenuOpen}
-                aria-label="Abrir menú de navegación"
-                aria-controls={isMenuOpen ? 'user-menu' : undefined}
-                aria-haspopup="true"
-                aria-expanded={isMenuOpen ? 'true' : undefined}
-                sx={{ p: 0.5 }}
+                color="inherit"
+                onClick={handleLogout}
+                aria-label="Cerrar sesión"
               >
-                <Avatar
-                  sx={{
-                    bgcolor: 'primary.dark',
-                    width: 40,
-                    height: 40,
-                    fontSize: '1rem',
-                    fontWeight: 600,
+                <LogoutIcon />
+              </IconButton>
+            </Tooltip>
+            {isAuthenticated && (
+              <>
+                <IconButton
+                  onClick={handleMenuOpen}
+                  aria-label="Abrir menú de navegación"
+                  aria-controls={isMenuOpen ? 'user-menu' : undefined}
+                  aria-haspopup="true"
+                  aria-expanded={isMenuOpen ? 'true' : undefined}
+                  sx={{ p: 0.5 }}
+                >
+                  <Avatar
+                    sx={{
+                      bgcolor: 'primary.dark',
+                      width: 40,
+                      height: 40,
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {getEmailInitial(userEmail)}
+                  </Avatar>
+                </IconButton>
+                <Menu
+                  id="user-menu"
+                  anchorEl={menuAnchor}
+                  open={isMenuOpen}
+                  onClose={handleMenuClose}
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                  slotProps={{
+                    paper: {
+                      sx: {
+                        mt: 1,
+                        minWidth: 220,
+                        maxWidth: 'calc(100vw - 32px)',
+                      },
+                    },
                   }}
                 >
-                  {getEmailInitial(userEmail)}
-                </Avatar>
-              </IconButton>
-              <Menu
-                id="user-menu"
-                anchorEl={menuAnchor}
-                open={isMenuOpen}
-                onClose={handleMenuClose}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                slotProps={{
-                  paper: {
-                    sx: {
-                      mt: 1,
-                      minWidth: 220,
-                      maxWidth: 'calc(100vw - 32px)',
-                    },
-                  },
-                }}
-              >
-                <MenuItem disabled sx={{ opacity: 1 }}>
-                  <ListItemText
-                    primary={userEmail}
-                    primaryTypographyProps={{
-                      variant: 'body2',
-                      color: 'text.secondary',
-                      noWrap: true,
-                    }}
-                  />
-                </MenuItem>
-                <Divider />
-                {navItems.map((item) => (
-                  <MenuItem
-                    key={item.path}
-                    component={Link}
-                    to={item.path}
-                    onClick={handleMenuClose}
-                  >
-                    {item.label}
+                  {userEmail && (
+                    <>
+                      <MenuItem disabled sx={{ opacity: 1 }}>
+                        <ListItemText
+                          primary={userEmail}
+                          primaryTypographyProps={{
+                            variant: 'body2',
+                            color: 'text.secondary',
+                            noWrap: true,
+                          }}
+                        />
+                      </MenuItem>
+                      <Divider />
+                    </>
+                  )}
+                  {navItems.map((item) => (
+                    <MenuItem
+                      key={item.path}
+                      component={Link}
+                      to={item.path}
+                      onClick={handleMenuClose}
+                    >
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                  <Divider />
+                  <MenuItem onClick={handleLogout}>
+                    <ListItemIcon>
+                      <LogoutIcon fontSize="small" />
+                    </ListItemIcon>
+                    Cerrar sesión
                   </MenuItem>
-                ))}
-                <Divider />
-                <MenuItem onClick={handleLogout}>
-                  <ListItemIcon>
-                    <LogoutIcon fontSize="small" />
-                  </ListItemIcon>
-                  Cerrar sesión
-                </MenuItem>
-              </Menu>
-            </>
-          )}
+                </Menu>
+              </>
+            )}
+          </Box>
         </Toolbar>
       </AppBar>
     </Box>

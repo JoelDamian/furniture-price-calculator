@@ -6,6 +6,8 @@ import { MelaminaMaterialsPage } from './components/Materiales';
 import { Login } from './components/Login';
 import { useAuthStore } from './store/authStore';
 import { useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './config/firebase';
 import { CotizacionStepper } from './components/CotizacionStepper';
 import { CotizacionesList } from './components/CotizacionesList';
 import { AccessorysGlobalPage } from './components/AccessoriesGlobal';
@@ -32,13 +34,24 @@ function App() {
   // Use single selector to avoid multiple subscriptions
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const userEmail = useAuthStore((state) => state.userEmail);
+  const login = useAuthStore((state) => state.login);
+  const logout = useAuthStore((state) => state.logout);
   const restoreSession = useAuthStore((state) => state.restoreSession);
   const addListAccessories = useAccessoryGlobalStore((state) => state.addListAccessories);
 
-  // Single useEffect for session restoration - removed duplicate logic
   useEffect(() => {
     restoreSession();
-  }, [restoreSession]);
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        login(user.uid, user.email ?? '');
+      } else {
+        logout();
+      }
+    });
+
+    return unsubscribe;
+  }, [login, logout, restoreSession]);
 
   // Separate useEffect for loading accessories only once on mount
   useEffect(() => {
