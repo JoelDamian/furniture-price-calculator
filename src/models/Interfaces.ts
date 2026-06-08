@@ -93,3 +93,22 @@ export interface Finanza {
   createdAt: string;
   finishedAt: string | null;
 }
+
+export interface EmployeePayment {
+  id: string;
+  amount: number;
+  startDate: string;
+  endDate: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface Employee {
+  id: string;
+  name: string;
+  birthDate: string;
+  identityCardNumber: string;
+  homeAddress: string;
+  payments: EmployeePayment[];
+  createdAt: string;
+}

@@ -24,6 +24,7 @@ import { fetchFinanzasByOrg, finalizeFinanzaInFirestore } from '../services/fina
 import { CrearFinanzaModal } from './finanzas/CrearFinanzaModal';
 import { DetalleFinanzaModal } from './finanzas/DetalleFinanzaModal';
 import { EditarFinanzaModal } from './finanzas/EditarFinanzaModal';
+import { EmpleadosTable } from './finanzas/empleados/EmpleadosTable';
 
 interface FinanzaRowProps {
   finanza: Finanza;
@@ -286,6 +287,7 @@ export const FinanzasPage: React.FC = () => {
       <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ mb: 3 }}>
         <Tab label="Carpintería" />
         <Tab label="Studio" />
+        <Tab label="Empleados" />
       </Tabs>
 
       {tab === 0 && (
@@ -294,6 +296,7 @@ export const FinanzasPage: React.FC = () => {
       {tab === 1 && (
         <FinanzasTable idOrg={FINANZAS_ORG.STUDIO} title="Studio" />
       )}
+      {tab === 2 && <EmpleadosTable />}
     </Container>
   );
 };
