@@ -136,7 +136,7 @@ export const RealizarPagoModal: React.FC<RealizarPagoModalProps> = ({
       <DialogContent sx={finanzaModalContentSx}>
         {employees.length === 0 ? (
           <Alert severity="warning">
-            No hay empleados registrados. Crea al menos uno antes de realizar un pago.
+            No hay empleados activos. Activa al menos uno antes de realizar un pago.
           </Alert>
         ) : (
           <>

@@ -12,6 +12,7 @@ const normalizeEmployeeFromFirestore = (id: string, data: Record<string, unknown
   birthDate: String(data.birthDate ?? ''),
   identityCardNumber: String(data.identityCardNumber ?? ''),
   homeAddress: String(data.homeAddress ?? ''),
+  isActive: typeof data.isActive === 'boolean' ? data.isActive : true,
   payments: ensureEmployeePayments(data.payments as EmployeePayment[] | null | undefined),
   createdAt: String(data.createdAt ?? ''),
 });
@@ -31,6 +32,16 @@ export const saveEmployee = async (
   return withGlobalLoading(async () => {
     const docRef = await addDoc(collection(db, COLLECTION), employee);
     return docRef.id;
+  });
+};
+
+export const updateEmployeeInFirestore = async (
+  id: string,
+  data: Omit<Employee, 'id'>
+): Promise<void> => {
+  return withGlobalLoading(async () => {
+    const employeeRef = doc(db, COLLECTION, id);
+    await updateDoc(employeeRef, data);
   });
 };
 

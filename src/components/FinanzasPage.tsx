@@ -25,6 +25,7 @@ import { CrearFinanzaModal } from './finanzas/CrearFinanzaModal';
 import { DetalleFinanzaModal } from './finanzas/DetalleFinanzaModal';
 import { EditarFinanzaModal } from './finanzas/EditarFinanzaModal';
 import { EmpleadosTable } from './finanzas/empleados/EmpleadosTable';
+import { FinanzasReporteTab } from './finanzas/reporte/FinanzasReporteTab';
 
 interface FinanzaRowProps {
   finanza: Finanza;
@@ -288,6 +289,7 @@ export const FinanzasPage: React.FC = () => {
         <Tab label="Carpintería" />
         <Tab label="Studio" />
         <Tab label="Empleados" />
+        <Tab label="Reporte" />
       </Tabs>
 
       {tab === 0 && (
@@ -297,6 +299,7 @@ export const FinanzasPage: React.FC = () => {
         <FinanzasTable idOrg={FINANZAS_ORG.STUDIO} title="Studio" />
       )}
       {tab === 2 && <EmpleadosTable />}
+      {tab === 3 && <FinanzasReporteTab />}
     </Container>
   );
 };

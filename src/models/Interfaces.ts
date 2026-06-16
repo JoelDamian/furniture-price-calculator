@@ -109,6 +109,7 @@ export interface Employee {
   birthDate: string;
   identityCardNumber: string;
   homeAddress: string;
+  isActive: boolean;
   payments: EmployeePayment[];
   createdAt: string;
 }

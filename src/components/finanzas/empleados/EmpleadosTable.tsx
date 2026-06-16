@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState, memo } from 'react';
 import {
   Box,
   Button,
+  Chip,
   Paper,
   Table,
   TableBody,
@@ -16,12 +17,14 @@ import { Employee, EmployeePayment } from '../../../models/Interfaces';
 import { fetchEmployees } from '../../../services/employeesService';
 import { ensureEmployeePayments } from '../../../utils/employeeUtils';
 import { CrearEmpleadoModal } from './CrearEmpleadoModal';
+import { EditarEmpleadoModal } from './EditarEmpleadoModal';
 import { AgregarPagoModal } from './AgregarPagoModal';
 import { VerPagosModal } from './VerPagosModal';
 import { RealizarPagoModal } from './RealizarPagoModal';
 
 interface EmpleadoRowProps {
   employee: Employee;
+  onEdit: (employee: Employee) => void;
   onViewPayments: (employee: Employee) => void;
   onAddPayment: (employee: Employee) => void;
 }
@@ -32,15 +35,25 @@ const formatDate = (date: string) => {
   return `${day}/${month}/${year}`;
 };
 
-const EmpleadoRow = memo(({ employee, onViewPayments, onAddPayment }: EmpleadoRowProps) => (
+const EmpleadoRow = memo(({ employee, onEdit, onViewPayments, onAddPayment }: EmpleadoRowProps) => (
   <TableRow hover>
     <TableCell>{employee.name}</TableCell>
     <TableCell>{formatDate(employee.birthDate)}</TableCell>
     <TableCell>{employee.identityCardNumber}</TableCell>
     <TableCell>{employee.homeAddress}</TableCell>
+    <TableCell>
+      <Chip
+        label={employee.isActive ? 'Activo' : 'Inactivo'}
+        color={employee.isActive ? 'success' : 'default'}
+        size="small"
+      />
+    </TableCell>
     <TableCell>{ensureEmployeePayments(employee.payments).length}</TableCell>
     <TableCell>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+        <Button size="small" onClick={() => onEdit(employee)}>
+          Editar
+        </Button>
         <Button size="small" variant="outlined" onClick={() => onViewPayments(employee)}>
           Ver pagos
         </Button>
@@ -58,6 +71,7 @@ export const EmpleadosTable: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [nameSearch, setNameSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [bulkPayOpen, setBulkPayOpen] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [addPaymentOpen, setAddPaymentOpen] = useState(false);
@@ -72,8 +86,27 @@ export const EmpleadosTable: React.FC = () => {
     loadEmployees();
   }, [loadEmployees]);
 
+  const activeEmployees = useMemo(
+    () => employees.filter((employee) => employee.isActive),
+    [employees]
+  );
+
   const handleEmployeeCreated = useCallback((employee: Employee) => {
     setEmployees((prev) => [...prev, employee].sort((a, b) => a.name.localeCompare(b.name)));
+  }, []);
+
+  const handleEmployeeUpdated = useCallback((employee: Employee) => {
+    setEmployees((prev) =>
+      prev
+        .map((item) => (item.id === employee.id ? employee : item))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    );
+    setSelectedEmployee((prev) => (prev?.id === employee.id ? employee : prev));
+  }, []);
+
+  const handleEdit = useCallback((employee: Employee) => {
+    setSelectedEmployee(employee);
+    setEditOpen(true);
   }, []);
 
   const handleViewPayments = useCallback((employee: Employee) => {
@@ -130,11 +163,12 @@ export const EmpleadosTable: React.FC = () => {
         <EmpleadoRow
           key={employee.id}
           employee={employee}
+          onEdit={handleEdit}
           onViewPayments={handleViewPayments}
           onAddPayment={handleAddPayment}
         />
       )),
-    [filteredEmployees, handleViewPayments, handleAddPayment]
+    [filteredEmployees, handleEdit, handleViewPayments, handleAddPayment]
   );
 
   const emptyMessage = nameSearch.trim()
@@ -171,6 +205,7 @@ export const EmpleadosTable: React.FC = () => {
               <TableCell>Fecha de nacimiento</TableCell>
               <TableCell>Carnet de identidad</TableCell>
               <TableCell>Domicilio</TableCell>
+              <TableCell>Estado</TableCell>
               <TableCell>Pagos</TableCell>
               <TableCell>Acciones</TableCell>
             </TableRow>
@@ -178,7 +213,7 @@ export const EmpleadosTable: React.FC = () => {
           <TableBody>
             {tableRows.length ? tableRows : (
               <TableRow>
-                <TableCell colSpan={6} align="center">
+                <TableCell colSpan={7} align="center">
                   {emptyMessage}
                 </TableCell>
               </TableRow>
@@ -193,9 +228,19 @@ export const EmpleadosTable: React.FC = () => {
         onCreated={handleEmployeeCreated}
       />
 
+      <EditarEmpleadoModal
+        open={editOpen}
+        employee={selectedEmployee}
+        onClose={() => {
+          setEditOpen(false);
+          setSelectedEmployee(null);
+        }}
+        onUpdated={handleEmployeeUpdated}
+      />
+
       <RealizarPagoModal
         open={bulkPayOpen}
-        employees={employees}
+        employees={activeEmployees}
         onClose={() => setBulkPayOpen(false)}
         onPaymentsAdded={handleBulkPaymentsAdded}
       />

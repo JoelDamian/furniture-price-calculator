@@ -9,7 +9,8 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { Employee } from '../../../models/Interfaces';
-import { saveEmployee } from '../../../services/employeesService';
+import { updateEmployeeInFirestore } from '../../../services/employeesService';
+import { ensureEmployeePayments } from '../../../utils/employeeUtils';
 import {
   finanzaModalActionsSx,
   finanzaModalCloseButtonSx,
@@ -19,48 +20,54 @@ import {
 import { EmpleadoFormFields } from './EmpleadoFormFields';
 import {
   buildEmpleadoFieldsFromForm,
+  empleadoToForm,
   emptyEmpleadoForm,
   EmpleadoFormData,
   isEmpleadoFormValid,
 } from './empleadoFormUtils';
 
-interface CrearEmpleadoModalProps {
+interface EditarEmpleadoModalProps {
   open: boolean;
+  employee: Employee | null;
   onClose: () => void;
-  onCreated: (employee: Employee) => void;
+  onUpdated: (employee: Employee) => void;
 }
 
-export const CrearEmpleadoModal: React.FC<CrearEmpleadoModalProps> = ({
+export const EditarEmpleadoModal: React.FC<EditarEmpleadoModalProps> = ({
   open,
+  employee,
   onClose,
-  onCreated,
+  onUpdated,
 }) => {
   const [form, setForm] = useState<EmpleadoFormData>(emptyEmpleadoForm);
 
   useEffect(() => {
-    if (open) setForm(emptyEmpleadoForm());
-  }, [open]);
+    if (open && employee) {
+      setForm(empleadoToForm(employee));
+    }
+  }, [open, employee]);
 
   const isValid = isEmpleadoFormValid(form);
 
-  const handleCreate = useCallback(async () => {
-    if (!isValid) return;
+  const handleSave = useCallback(async () => {
+    if (!employee || !isValid) return;
 
-    const payload = {
-      ...buildEmpleadoFieldsFromForm(form),
-      payments: [],
-      createdAt: new Date().toISOString(),
+    const fields = buildEmpleadoFieldsFromForm(form);
+    const payload: Omit<Employee, 'id'> = {
+      ...fields,
+      payments: ensureEmployeePayments(employee.payments),
+      createdAt: employee.createdAt,
     };
 
-    const newId = await saveEmployee(payload);
-    onCreated({ id: newId, ...payload });
+    await updateEmployeeInFirestore(employee.id, payload);
+    onUpdated({ id: employee.id, ...payload });
     onClose();
-  }, [form, isValid, onClose, onCreated]);
+  }, [employee, form, isValid, onClose, onUpdated]);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={finanzaModalTitleSx}>
-        Crear empleado
+        Editar empleado
         <IconButton
           onClick={onClose}
           sx={finanzaModalCloseButtonSx}
@@ -75,7 +82,7 @@ export const CrearEmpleadoModal: React.FC<CrearEmpleadoModalProps> = ({
       </DialogContent>
       <DialogActions sx={finanzaModalActionsSx}>
         <Button onClick={onClose}>Cancelar</Button>
-        <Button variant="contained" onClick={handleCreate} disabled={!isValid}>
+        <Button variant="contained" onClick={handleSave} disabled={!isValid}>
           Guardar
         </Button>
       </DialogActions>
