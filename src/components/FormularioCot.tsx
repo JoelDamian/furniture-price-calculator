@@ -79,9 +79,10 @@ TableRowItem.displayName = 'TableRowItem';
 
 interface FormCotizacionProps {
     isEdit?: boolean;
+    initialTipoMueble?: string;
 }
 
-export const FormCotizacion: React.FC<FormCotizacionProps> = ({ isEdit = false }) => {
+export const FormCotizacion: React.FC<FormCotizacionProps> = ({ isEdit = false, initialTipoMueble = '' }) => {
     const materiales = useMaterialStore((state) => state.materiales);
     const items = useCotizacionStore((state) => state.items);
     const dimensiones = useCotizacionStore((state) => state.dimensiones);
@@ -91,10 +92,16 @@ export const FormCotizacion: React.FC<FormCotizacionProps> = ({ isEdit = false }
     const addListItem = useCotizacionStore((state) => state.addListItem);
     const setStoreDimensiones = useCotizacionStore((state) => state.setDimensiones);
 
-    const [furnitureType, setFurnitureType] = useState<string>('');
+    const [furnitureType, setFurnitureType] = useState<string>(initialTipoMueble);
     const [form, setForm] = useState(initialFormState);
     const [editIndex, setEditIndex] = useState<string | null>(null);
     const [editOpen, setEditOpen] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (initialTipoMueble) {
+            setFurnitureType(initialTipoMueble);
+        }
+    }, [initialTipoMueble]);
 
     // Memoized calculations
     const calcularPrecioUnitario = useCallback((ancho: number, largo: number, precioM2: number, isTube?: boolean, precioML?: number) => {

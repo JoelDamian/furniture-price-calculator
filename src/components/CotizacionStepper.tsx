@@ -21,7 +21,7 @@ export const CotizacionStepper: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
-  const { isEdit } = location.state || {};
+  const { isEdit, fromAi, tipoMueble } = location.state || {};
 
   // Store selectors
   const cotizacion = useCotizacionGlobalStore((state) => state.cotizacion);
@@ -34,12 +34,12 @@ export const CotizacionStepper: React.FC = () => {
   const updateItem = useAccessoryStore((state) => state.updateItem);
 
   useEffect(() => {
-    if (!isEdit) {
+    if (!isEdit && !fromAi) {
       resetPiezas();
       resetAccesorios();
       resetGlobal();
     }
-  }, [isEdit, resetPiezas, resetAccesorios, resetGlobal]);
+  }, [isEdit, fromAi, resetPiezas, resetAccesorios, resetGlobal]);
 
   // Memoized reset function
   const resetAllStores = useCallback(() => {
@@ -80,7 +80,7 @@ export const CotizacionStepper: React.FC = () => {
   const stepContent = useMemo(() => {
     switch (activeStep) {
       case 0:
-        return <MemoizedFormCotizacion isEdit={isEdit} />;
+        return <MemoizedFormCotizacion isEdit={isEdit} initialTipoMueble={tipoMueble} />;
       case 1:
         return <MemoizedAccessorysPage />;
       case 2:
@@ -88,7 +88,7 @@ export const CotizacionStepper: React.FC = () => {
       default:
         return <Typography>Step desconocido</Typography>;
     }
-  }, [activeStep, isEdit]);
+  }, [activeStep, isEdit, tipoMueble]);
 
   const addNewCotizacion = useCallback(async () => {
     try {

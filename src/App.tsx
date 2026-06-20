@@ -18,6 +18,7 @@ import { PlanosPage } from './components/Cortes/PlanosPage';
 import { GlobalLoadingOverlay } from './components/GlobalLoadingOverlay';
 import { FinanzasPage } from './components/FinanzasPage';
 import { canAccessFinanzas } from './constants/finanzasAccess';
+import { CotizacionAiChatWidget } from './components/CotizacionAiChatWidget';
 
 // Create theme with pink as primary color
 const theme = createTheme({
@@ -71,6 +72,7 @@ function App() {
       <Router>
         <GlobalLoadingOverlay />
         <ResponsiveAppBar />
+        <CotizacionAiChatWidget />
         <Container sx={{ mt: 4 }}>
           <Routes>
             <Route path="/" element={
