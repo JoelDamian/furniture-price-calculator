@@ -1,17 +1,23 @@
 // src/services/cotizacionService.ts
-import { collection, addDoc, getDocs, doc, updateDoc,deleteDoc  } from "firebase/firestore";
+import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { Cotizacion } from "../models/Interfaces";
 import { db } from "../config/firebase";
 import { withGlobalLoading } from "../utils/withGlobalLoading";
+
+/** Firestore no acepta valores `undefined` */
+const omitUndefined = <T extends Record<string, unknown>>(data: T): Partial<T> =>
+    Object.fromEntries(
+        Object.entries(data).filter(([, value]) => value !== undefined)
+    ) as Partial<T>;
 
 export const saveCotizacion = async (cotizacion: Cotizacion) => {
     return withGlobalLoading(async () => {
         try {
             const { id, ...cotizacionSinId } = cotizacion;
-            const docData = {
+            const docData = omitUndefined({
                 ...cotizacionSinId,
                 createdAt: cotizacionSinId.createdAt ?? new Date().toISOString(),
-            };
+            });
             console.log("Guardando cotización en Firestore:", docData);
             const docRef = await addDoc(collection(db, "cotizacion"), docData);
             return docRef.id;
@@ -41,7 +47,7 @@ export const fetchCotizaciones = async () => {
 export const updateCotizacionInFirestore = async (id: string, data: Partial<Omit<Cotizacion, 'id'>>) => {
   return withGlobalLoading(async () => {
     const ref = doc(db, 'cotizacion', id);
-    await updateDoc(ref, data);
+    await updateDoc(ref, omitUndefined(data as Record<string, unknown>));
   });
 };
 
