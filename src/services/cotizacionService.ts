@@ -8,8 +8,12 @@ export const saveCotizacion = async (cotizacion: Cotizacion) => {
     return withGlobalLoading(async () => {
         try {
             const { id, ...cotizacionSinId } = cotizacion;
-            console.log("Guardando cotización en Firestore:", cotizacionSinId);
-            const docRef = await addDoc(collection(db, "cotizacion"), cotizacionSinId);
+            const docData = {
+                ...cotizacionSinId,
+                createdAt: cotizacionSinId.createdAt ?? new Date().toISOString(),
+            };
+            console.log("Guardando cotización en Firestore:", docData);
+            const docRef = await addDoc(collection(db, "cotizacion"), docData);
             return docRef.id;
         } catch (error) {
             console.error("Error guardando cotización:", error);

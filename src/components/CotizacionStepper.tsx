@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, Stepper, Step, StepLabel, Button, Typography } from '@mui/material';
+import { Box, Button, Paper, Typography } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import SaveIcon from '@mui/icons-material/Save';
 import { FormCotizacion } from './FormularioCot';
 import { AccessorysPage } from './Accessories';
 import { CotizacionPreview } from './CotizacionPreview';
+import { CotizacionWizardStepper } from './cotizacion/CotizacionWizardStepper';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
@@ -12,7 +16,6 @@ import { Accessory } from '../models/Interfaces';
 
 const steps = ['Piezas', 'Agregar Accesorios', 'Previsualización'];
 
-// Memoized step components to prevent unnecessary re-renders
 const MemoizedFormCotizacion = React.memo(FormCotizacion);
 const MemoizedAccessorysPage = React.memo(AccessorysPage);
 const MemoizedCotizacionPreview = React.memo(CotizacionPreview);
@@ -23,7 +26,6 @@ export const CotizacionStepper: React.FC = () => {
   const location = useLocation();
   const { isEdit, fromAi, tipoMueble } = location.state || {};
 
-  // Store selectors
   const cotizacion = useCotizacionGlobalStore((state) => state.cotizacion);
   const piezas = useCotizacionStore((state) => state.items);
   const resetPiezas = useCotizacionStore((state) => state.clearItems);
@@ -41,7 +43,6 @@ export const CotizacionStepper: React.FC = () => {
     }
   }, [isEdit, fromAi, resetPiezas, resetAccesorios, resetGlobal]);
 
-  // Memoized reset function
   const resetAllStores = useCallback(() => {
     resetPiezas();
     resetAccesorios();
@@ -51,12 +52,12 @@ export const CotizacionStepper: React.FC = () => {
   const handleNext = useCallback(() => {
     const totalTC = piezas.reduce((sum, item) => sum + (item.tc || 0), 0);
     const foundTC = items.find(acc => acc.id === '1');
-    
+
     if (foundTC) {
-      const newAccesorio = { 
-        ...foundTC, 
-        cantidad: totalTC, 
-        precioTotal: totalTC * foundTC.precioUnitario 
+      const newAccesorio = {
+        ...foundTC,
+        cantidad: totalTC,
+        precioTotal: totalTC * foundTC.precioUnitario
       };
       updateItem(newAccesorio.id, newAccesorio);
     } else {
@@ -76,7 +77,6 @@ export const CotizacionStepper: React.FC = () => {
     setActiveStep((prev) => prev - 1);
   }, []);
 
-  // Memoized step content renderer
   const stepContent = useMemo(() => {
     switch (activeStep) {
       case 0:
@@ -92,7 +92,6 @@ export const CotizacionStepper: React.FC = () => {
 
   const addNewCotizacion = useCallback(async () => {
     try {
-      console.log("Guardando cotización:", cotizacion);
       const id = await saveCotizacion(cotizacion);
       console.log("Cotización guardada con ID:", id);
       resetAllStores();
@@ -104,7 +103,6 @@ export const CotizacionStepper: React.FC = () => {
 
   const editCotizacion = useCallback(async () => {
     try {
-      console.log("Editando cotización ID:", cotizacion.id);
       await updateCotizacionInFirestore(cotizacion.id, cotizacion);
       resetAllStores();
       navigate('/lista-cotizaciones');
@@ -125,42 +123,68 @@ export const CotizacionStepper: React.FC = () => {
   const isFirstStep = activeStep === 0;
 
   return (
-    <Box sx={{ width: '100%', p: { xs: 1, md: 4 } }}>
-      <Stepper activeStep={activeStep} alternativeLabel>
-        {steps.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
+    <Box sx={{ width: '100%', maxWidth: 1100, mx: 'auto', px: { xs: 1, md: 2 }, py: { xs: 2, md: 3 } }}>
+      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5, color: 'text.primary' }}>
+        {isEdit ? 'Editar cotización' : 'Nueva cotización'}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Completa los pasos para {isEdit ? 'actualizar' : 'crear'} tu cotización de melamina.
+      </Typography>
 
-      <Box sx={{ mt: 4 }}>{stepContent}</Box>
+      <CotizacionWizardStepper steps={steps} activeStep={activeStep} />
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-        <Button
-          disabled={isFirstStep}
-          onClick={handleBack}
-          variant="outlined"
+      <Paper
+        elevation={0}
+        sx={{
+          borderRadius: 3,
+          boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+          overflow: 'hidden',
+        }}
+      >
+        <Box sx={{ p: { xs: 2, md: 3 } }}>{stepContent}</Box>
+
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 2,
+            px: { xs: 2, md: 3 },
+            py: 2,
+            borderTop: 1,
+            borderColor: 'divider',
+            bgcolor: 'grey.50',
+          }}
         >
-          Atrás
-        </Button>
-        {!isLastStep && (
           <Button
-            variant="contained"
-            onClick={handleNext}
+            disabled={isFirstStep}
+            onClick={handleBack}
+            variant="outlined"
+            startIcon={<ArrowBackIcon />}
+            sx={{ borderRadius: 2, px: 3 }}
           >
-            Siguiente
+            Atrás
           </Button>
-        )}
-        {isLastStep && (
-          <Button
-            variant="contained"
-            onClick={handleSave}
-          >
-            Guardar
-          </Button>
-        )}
-      </Box>
+          {!isLastStep ? (
+            <Button
+              variant="contained"
+              onClick={handleNext}
+              endIcon={<ArrowForwardIcon />}
+              sx={{ borderRadius: 2, px: 3, boxShadow: 'none' }}
+            >
+              Siguiente
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              onClick={handleSave}
+              startIcon={<SaveIcon />}
+              sx={{ borderRadius: 2, px: 3, boxShadow: 'none' }}
+            >
+              Guardar
+            </Button>
+          )}
+        </Box>
+      </Paper>
     </Box>
   );
 };

@@ -24,9 +24,30 @@ import { CotizacionAiChatWidget } from './components/CotizacionAiChatWidget';
 const theme = createTheme({
   palette: {
     primary: {
-      main: pink[500], // #e91e63
+      main: pink[500],
       light: pink[300],
       dark: pink[700],
+      50: '#fce4ec',
+      100: '#f8bbd0',
+    },
+    background: {
+      default: '#f5f5f7',
+    },
+  },
+  shape: {
+    borderRadius: 12,
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 600,
+        },
+      },
     },
   },
 });

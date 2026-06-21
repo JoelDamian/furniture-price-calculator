@@ -19,10 +19,12 @@ import {
   Checkbox,
   FormControlLabel,
   List,
-  ListItem
+  ListItem,
+  Box,
 } from '@mui/material';
 import { Cotizacion, MaterialItem } from '../models/Interfaces';
 import { fetchCotizaciones, deleteCotizacionInFirestore, saveCotizacion } from '../services/cotizacionService';
+import { getCotizacionImageUrl } from '../services/imageUploadService';
 import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
@@ -57,6 +59,22 @@ const CotizacionRow = memo(({
       <Checkbox
         checked={isSelected}
         onChange={() => onToggleSelect(cotizacion.id)}
+      />
+    </TableCell>
+    <TableCell>
+      <Box
+        component="img"
+        src={getCotizacionImageUrl(cotizacion.imagenUrl, cotizacion.imagenThumbnail)}
+        alt={cotizacion.nombre}
+        sx={{
+          width: 56,
+          height: 56,
+          objectFit: 'cover',
+          borderRadius: 1,
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'grey.100',
+        }}
       />
     </TableCell>
     <TableCell>{cotizacion.nombre}</TableCell>
@@ -154,14 +172,16 @@ export const CotizacionesList: React.FC = () => {
         ...cotizacionToDuplicate,
         id: '',
         nombre: `Copy ${cotizacionToDuplicate.nombre}`,
+        createdAt: undefined,
       };
 
       const newId = await saveCotizacion(duplicated);
 
       if (newId) {
+        const createdAt = new Date().toISOString();
         setCotizaciones((prev) => {
           const next = prev ?? [];
-          return [{ ...duplicated, id: newId }, ...next];
+          return [{ ...duplicated, id: newId, createdAt }, ...next];
         });
       } else {
         const datos = await fetchCotizaciones();
@@ -431,6 +451,7 @@ export const CotizacionesList: React.FC = () => {
           <TableHead>
             <TableRow>
               <TableCell></TableCell>
+              <TableCell>Imagen</TableCell>
               <TableCell>Nombre</TableCell>
               <TableCell>Total</TableCell>
               <TableCell>Mano de Obra</TableCell>

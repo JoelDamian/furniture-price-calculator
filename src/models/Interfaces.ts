@@ -41,6 +41,9 @@ export interface EstanteItem {
 export interface Cotizacion {
   id: string;
   nombre: string;
+  imagenUrl?: string;
+  imagenThumbnail?: string;
+  createdAt?: string;
   piezas: EstanteItem[];
   accesorios: Accessory[];
   manoDeObra: number;

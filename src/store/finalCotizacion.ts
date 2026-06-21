@@ -12,6 +12,7 @@ export const useCotizacionGlobalStore = create<CotizacionState>((set) => ({
     cotizacion: {
         id: '',
         nombre: '',
+        imagenUrl: undefined,
         piezas: [],
         accesorios: [],
         manoDeObra: 0,
@@ -40,6 +41,7 @@ export const useCotizacionGlobalStore = create<CotizacionState>((set) => ({
             cotizacion: {
                 id: '',
                 nombre: '',
+                imagenUrl: undefined,
                 piezas: [],
                 accesorios: [],
                 manoDeObra: 0,
