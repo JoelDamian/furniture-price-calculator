@@ -1,8 +1,10 @@
 import { DEFAULT_COTIZACION_IMAGE } from '../constants/images';
+import {
+  GOOGLE_DRIVE_FOLDER_ID,
+  GOOGLE_DRIVE_UPLOAD_URL,
+} from '../constants/googleDrive';
 import { compressImageForUpload } from '../utils/compressImage';
-
-const GOOGLE_DRIVE_UPLOAD_URL = import.meta.env.VITE_GOOGLE_DRIVE_UPLOAD_URL as string | undefined;
-const GOOGLE_DRIVE_FOLDER_ID = '10uF_tAe33O_lajM-o-SDOJUON0uUP8qy';
+import { extractDriveFileId } from '../utils/pdfImageUtils';
 
 interface UploadResult {
   url: string;
@@ -20,7 +22,7 @@ const getUploadUrl = (): string => {
   if (import.meta.env.DEV) {
     return '/api/drive-upload';
   }
-  return GOOGLE_DRIVE_UPLOAD_URL!;
+  return GOOGLE_DRIVE_UPLOAD_URL;
 };
 
 const fileToBase64 = (file: File): Promise<string> =>
@@ -56,6 +58,7 @@ const uploadViaFetch = async (payload: string): Promise<GasUploadResponse> => {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: payload,
+    redirect: 'follow',
   });
 
   const text = await response.text();
@@ -70,16 +73,11 @@ const uploadViaFetch = async (payload: string): Promise<GasUploadResponse> => {
 
 const uploadViaIframe = (payload: string): Promise<GasUploadResponse> =>
   new Promise((resolve, reject) => {
-    if (!GOOGLE_DRIVE_UPLOAD_URL) {
-      reject(new Error('URL de Google Drive no configurada'));
-      return;
-    }
-
     const iframeName = `gas-upload-${Date.now()}`;
     const iframe = document.createElement('iframe');
     iframe.name = iframeName;
     iframe.style.display = 'none';
-    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+    iframe.setAttribute('referrerpolicy', 'no-referrer');
     document.body.appendChild(iframe);
 
     const form = document.createElement('form');
@@ -87,6 +85,7 @@ const uploadViaIframe = (payload: string): Promise<GasUploadResponse> =>
     form.action = `${GOOGLE_DRIVE_UPLOAD_URL}?mode=iframe`;
     form.target = iframeName;
     form.style.display = 'none';
+    form.setAttribute('accept-charset', 'UTF-8');
 
     const payloadInput = document.createElement('input');
     payloadInput.type = 'hidden';
@@ -126,7 +125,7 @@ const uploadViaIframe = (payload: string): Promise<GasUploadResponse> =>
           )
         )
       );
-    }, 60000);
+    }, 90000);
 
     const onMessage = (event: MessageEvent) => {
       const data = event.data as {
@@ -155,12 +154,6 @@ export const uploadCotizacionImage = async (
   file: File,
   cotizacionNombre: string
 ): Promise<UploadResult> => {
-  if (!GOOGLE_DRIVE_UPLOAD_URL) {
-    throw new Error(
-      'No está configurada la subida a Google Drive. Agrega VITE_GOOGLE_DRIVE_UPLOAD_URL en tu archivo .env'
-    );
-  }
-
   const compressedFile = await compressImageForUpload(file);
   const base64Data = await fileToBase64(compressedFile);
   const timestamp = Date.now();
@@ -175,9 +168,13 @@ export const uploadCotizacionImage = async (
     folderId: GOOGLE_DRIVE_FOLDER_ID,
   });
 
-  const data = import.meta.env.DEV
-    ? await uploadViaFetch(payload)
-    : await uploadViaIframe(payload);
+  let data: GasUploadResponse;
+  try {
+    data = await uploadViaFetch(payload);
+  } catch (fetchError) {
+    console.warn('Subida por fetch falló, intentando iframe:', fetchError);
+    data = await uploadViaIframe(payload);
+  }
 
   if (!data.url) {
     throw new Error('No se recibió la URL de la imagen');
@@ -186,5 +183,16 @@ export const uploadCotizacionImage = async (
   return { url: data.url, fileId: data.fileId };
 };
 
-export const getCotizacionImageUrl = (imagenUrl?: string, imagenThumbnail?: string): string =>
-  imagenUrl || imagenThumbnail || DEFAULT_COTIZACION_IMAGE;
+const normalizeDriveImageUrl = (url: string): string => {
+  const fileId = extractDriveFileId(url);
+  if (fileId) {
+    return `https://drive.google.com/uc?export=view&id=${fileId}`;
+  }
+  return url;
+};
+
+export const getCotizacionImageUrl = (imagenUrl?: string, imagenThumbnail?: string): string => {
+  if (imagenThumbnail) return imagenThumbnail;
+  if (imagenUrl) return normalizeDriveImageUrl(imagenUrl);
+  return DEFAULT_COTIZACION_IMAGE;
+};

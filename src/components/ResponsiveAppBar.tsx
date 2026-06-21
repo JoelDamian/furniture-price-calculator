@@ -14,11 +14,14 @@ import {
   Tooltip,
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
+import RestoreIcon from '@mui/icons-material/Restore';
 import { Link, useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import { useAuthStore } from '../store/authStore';
 import { canAccessFinanzas } from '../constants/finanzasAccess';
+import { canRecoverCotizacion } from '../constants/recoverAccess';
+import { RecoverCotizacionDialog } from './RecoverCotizacionDialog';
 
 const baseNavItems = [
   { label: 'Materiales', path: '/material' },
@@ -35,6 +38,7 @@ const getEmailInitial = (email: string | null): string => {
 
 export const ResponsiveAppBar: React.FC = () => {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [recoverOpen, setRecoverOpen] = useState(false);
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const userEmail = useAuthStore((state) => state.userEmail);
@@ -67,6 +71,26 @@ export const ResponsiveAppBar: React.FC = () => {
       navigate('/');
     }
   }, [handleMenuClose, logout, navigate]);
+
+  const handleRecoverOpen = useCallback(() => {
+    handleMenuClose();
+    setRecoverOpen(true);
+  }, [handleMenuClose]);
+
+  const handleRecoverClose = useCallback(() => {
+    setRecoverOpen(false);
+  }, []);
+
+  const handleRecoverSuccess = useCallback(
+    (_newId: string, nombre: string) => {
+      navigate('/lista-cotizaciones', {
+        state: { recoverSuccess: nombre },
+      });
+    },
+    [navigate]
+  );
+
+  const showRecover = canRecoverCotizacion(userEmail);
 
   const isMenuOpen = Boolean(menuAnchor);
 
@@ -151,6 +175,17 @@ export const ResponsiveAppBar: React.FC = () => {
                       {item.label}
                     </MenuItem>
                   ))}
+                  {showRecover && (
+                    <>
+                      <Divider />
+                      <MenuItem onClick={handleRecoverOpen}>
+                        <ListItemIcon>
+                          <RestoreIcon fontSize="small" />
+                        </ListItemIcon>
+                        Recover
+                      </MenuItem>
+                    </>
+                  )}
                   <Divider />
                   <MenuItem onClick={handleLogout}>
                     <ListItemIcon>
@@ -164,6 +199,13 @@ export const ResponsiveAppBar: React.FC = () => {
           </Box>
         </Toolbar>
       </AppBar>
+      {showRecover && (
+        <RecoverCotizacionDialog
+          open={recoverOpen}
+          onClose={handleRecoverClose}
+          onSuccess={handleRecoverSuccess}
+        />
+      )}
     </Box>
   );
 };

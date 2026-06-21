@@ -21,14 +21,15 @@ import {
   List,
   ListItem,
   Box,
+  Alert,
+  Snackbar,
 } from '@mui/material';
-import { Cotizacion, MaterialItem } from '../models/Interfaces';
 import { fetchCotizaciones, deleteCotizacionInFirestore, saveCotizacion } from '../services/cotizacionService';
 import { getCotizacionImageUrl } from '../services/imageUploadService';
 import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { agruparPiezasPorMaterial, agruparPiezasPorMaterialDeVariasCotizaciones } from '../utils/groupByMaterial';
 import { optimizarMelamina } from "../utils/optimizerMelamina";
 import { useMaterialStore } from '../store/materialStore';
@@ -125,14 +126,26 @@ export const CotizacionesList: React.FC = () => {
   const materiales = useMaterialStore((state) => state.materiales);
   
   const navigate = useNavigate();
+  const location = useLocation();
+  const [recoverSnackbar, setRecoverSnackbar] = useState<string | null>(null);
+
+  const loadCotizaciones = useCallback(async () => {
+    const datos = await fetchCotizaciones();
+    setCotizaciones(datos);
+  }, []);
 
   useEffect(() => {
-    const loadCotizaciones = async () => {
-      const datos = await fetchCotizaciones();
-      setCotizaciones(datos);
-    };
     loadCotizaciones();
-  }, []);
+  }, [loadCotizaciones]);
+
+  useEffect(() => {
+    const state = location.state as { recoverSuccess?: string } | null;
+    if (state?.recoverSuccess) {
+      setRecoverSnackbar(`Cotización "${state.recoverSuccess}" creada correctamente`);
+      loadCotizaciones();
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, loadCotizaciones, navigate]);
 
   // Memoized filtered cotizaciones
   const filteredCotizaciones = useMemo(() => 
@@ -516,6 +529,17 @@ export const CotizacionesList: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={!!recoverSnackbar}
+        autoHideDuration={5000}
+        onClose={() => setRecoverSnackbar(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setRecoverSnackbar(null)}>
+          {recoverSnackbar}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

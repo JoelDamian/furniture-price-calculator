@@ -28,6 +28,13 @@ export const saveCotizacion = async (cotizacion: Cotizacion) => {
     });
 };
 
+/** Importa una cotización desde JSON (sin id) — usado por Recover */
+export const recoverCotizacionFromJson = async (
+    data: Omit<Cotizacion, 'id'>
+): Promise<string> => {
+    return saveCotizacion({ ...data, id: '' });
+};
+
 export const fetchCotizaciones = async () => {
     return withGlobalLoading(async () => {
         try {

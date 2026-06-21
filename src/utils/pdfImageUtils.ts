@@ -49,4 +49,14 @@ export const resolveImageForPdf = async (
 export const getDisplayImageUrl = (
   imagenUrl?: string,
   imagenThumbnail?: string
-): string | undefined => imagenUrl || imagenThumbnail;
+): string | undefined => {
+  if (imagenThumbnail) return imagenThumbnail;
+  if (!imagenUrl) return undefined;
+
+  const fileId = extractDriveFileId(imagenUrl);
+  if (fileId && !import.meta.env.DEV) {
+    return `https://drive.google.com/uc?export=view&id=${fileId}`;
+  }
+
+  return imagenUrl;
+};
