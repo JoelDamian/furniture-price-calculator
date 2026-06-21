@@ -14,15 +14,6 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import '@chatscope/chat-ui-kit-styles/dist/default/styles.min.css';
-import {
-  MainContainer,
-  ChatContainer,
-  MessageList,
-  Message,
-  MessageInput,
-  TypingIndicator,
-} from '@chatscope/chat-ui-kit-react';
 import { useNavigate } from 'react-router-dom';
 import { useMaterialStore } from '../../store/materialStore';
 import { useCotizacionStore } from '../../store/cotizacionStore';
@@ -33,7 +24,6 @@ import {
   getWelcomeMessage,
   resetAiChat,
   sendAiMessage,
-  ChatMessage,
 } from '../../services/cotizacionAiService';
 import {
   generarPiezasMueble,
@@ -41,11 +31,65 @@ import {
   stripQuoteReadyBlock,
   extractQuoteFromConversation,
   CotizacionAiParams,
+  ChatMessage,
 } from '../../utils/cotizacionAiUtils';
+import {
+  fileToChatMessageImage,
+  chatMessageImageToPreviewUrl,
+  MAX_AI_IMAGE_MB,
+} from '../../utils/aiImageUtils';
+import { AiChatInput } from './AiChatInput';
 
 interface CotizacionAiChatProps {
   onQuoteApplied?: () => void;
 }
+
+const MessageBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
+  const isUser = message.role === 'user';
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        justifyContent: isUser ? 'flex-end' : 'flex-start',
+        mb: 1.5,
+        px: 1,
+      }}
+    >
+      <Box
+        sx={{
+          maxWidth: '85%',
+          px: 1.5,
+          py: 1,
+          borderRadius: 2,
+          bgcolor: isUser ? 'primary.main' : '#fce4ec',
+          color: isUser ? 'primary.contrastText' : 'text.primary',
+        }}
+      >
+        {message.image && (
+          <Box
+            component="img"
+            src={chatMessageImageToPreviewUrl(message.image)}
+            alt="Imagen enviada"
+            sx={{
+              display: 'block',
+              maxWidth: '100%',
+              maxHeight: 160,
+              borderRadius: 1,
+              mb: message.content ? 1 : 0,
+              objectFit: 'cover',
+            }}
+          />
+        )}
+        {message.content && (
+          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+            {message.content}
+          </Typography>
+        )}
+      </Box>
+    </Box>
+  );
+};
 
 export const CotizacionAiChat: React.FC<CotizacionAiChatProps> = ({ onQuoteApplied }) => {
   const [open, setOpen] = useState(false);
@@ -54,7 +98,10 @@ export const CotizacionAiChat: React.FC<CotizacionAiChatProps> = ({ onQuoteAppli
   const [error, setError] = useState<string | null>(null);
   const [pendingQuote, setPendingQuote] = useState<CotizacionAiParams | null>(null);
   const [materialsLoaded, setMaterialsLoaded] = useState(false);
+  const [pendingImage, setPendingImage] = useState<ChatMessage['image']>();
+  const [pendingPreview, setPendingPreview] = useState<string>();
   const initializedRef = useRef(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const materiales = useMaterialStore((state) => state.materiales);
   const setMateriales = useMaterialStore((state) => state.setMateriales);
@@ -65,6 +112,14 @@ export const CotizacionAiChat: React.FC<CotizacionAiChatProps> = ({ onQuoteAppli
   const setCotizacion = useCotizacionGlobalStore((state) => state.setCotizacion);
   const resetGlobal = useCotizacionGlobalStore((state) => state.resetCotizacion);
   const navigate = useNavigate();
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isTyping, scrollToBottom]);
 
   const loadMaterials = useCallback(async () => {
     if (materiales.length > 0) {
@@ -98,56 +153,88 @@ export const CotizacionAiChat: React.FC<CotizacionAiChatProps> = ({ onQuoteAppli
     }
   }, [open, materialsLoaded, materiales, initChat]);
 
+  const clearAttachment = useCallback(() => {
+    setPendingImage(undefined);
+    setPendingPreview(undefined);
+  }, []);
+
   const handleReset = useCallback(() => {
     resetAiChat();
     initializedRef.current = false;
     setPendingQuote(null);
     setError(null);
+    clearAttachment();
     setMessages([]);
     if (materiales.length > 0) {
       initializedRef.current = true;
       setMessages([{ role: 'assistant', content: getWelcomeMessage(materiales) }]);
     }
-  }, [materiales]);
+  }, [materiales, clearAttachment]);
 
-  const handleSend = useCallback(async (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed || isTyping) return;
-
-    setError(null);
-    const userMessage: ChatMessage = { role: 'user', content: trimmed };
-    const priorMessages = [...messages, userMessage];
-    setMessages((prev) => [...prev, userMessage]);
-    setIsTyping(true);
-
-    try {
-      const response = await sendAiMessage(trimmed, materiales, messages);
-      let quoteParams = parseQuoteReadyBlock(response);
-      const displayText = stripQuoteReadyBlock(response) || response;
-
-      if (!quoteParams) {
-        quoteParams = extractQuoteFromConversation(priorMessages, materiales);
-      }
-
-      setMessages((prev) => [...prev, { role: 'assistant', content: displayText }]);
-
-      if (quoteParams) {
-        setPendingQuote(quoteParams);
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al comunicarse con la IA.';
-      setError(message);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'Lo siento, hubo un problema al procesar tu mensaje. Verifica que la API de Gemini esté habilitada en Firebase o intenta de nuevo.',
-        },
-      ]);
-    } finally {
-      setIsTyping(false);
+  const handleAttach = useCallback(async (file: File) => {
+    if (file.size > MAX_AI_IMAGE_MB * 1024 * 1024) {
+      setError(`La imagen no puede superar ${MAX_AI_IMAGE_MB} MB`);
+      return;
     }
-  }, [isTyping, materiales, messages]);
+    try {
+      const image = await fileToChatMessageImage(file);
+      setPendingImage(image);
+      setPendingPreview(chatMessageImageToPreviewUrl(image));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo procesar la imagen');
+    }
+  }, []);
+
+  const handleSend = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if ((!trimmed && !pendingImage) || isTyping) return;
+
+      setError(null);
+      const userMessage: ChatMessage = {
+        role: 'user',
+        content: trimmed || (pendingImage ? '📷 Imagen del mueble' : ''),
+        image: pendingImage,
+      };
+      const priorMessages = [...messages, userMessage];
+      const imageToSend = pendingImage;
+
+      setMessages((prev) => [...prev, userMessage]);
+      clearAttachment();
+      setIsTyping(true);
+
+      try {
+        const response = await sendAiMessage(trimmed, materiales, messages, imageToSend);
+        let quoteParams = parseQuoteReadyBlock(response);
+        const displayText = stripQuoteReadyBlock(response) || response;
+
+        if (!quoteParams) {
+          quoteParams = extractQuoteFromConversation(priorMessages, materiales);
+        }
+
+        setMessages((prev) => [...prev, { role: 'assistant', content: displayText }]);
+
+        if (quoteParams) {
+          setPendingQuote(quoteParams);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Error al comunicarse con la IA.';
+        setError(message);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              'Lo siento, hubo un problema al procesar tu mensaje. Verifica que la API de Gemini esté habilitada en Firebase o intenta de nuevo.',
+          },
+        ]);
+      } finally {
+        setIsTyping(false);
+      }
+    },
+    [isTyping, materiales, messages, pendingImage, clearAttachment]
+  );
 
   const handleApplyQuote = useCallback(() => {
     if (!pendingQuote) return;
@@ -278,54 +365,35 @@ export const CotizacionAiChat: React.FC<CotizacionAiChatProps> = ({ onQuoteAppli
             </Box>
           )}
 
-          <Box
-            sx={{
-              flex: 1,
-              minHeight: 0,
-              '& .cs-main-container': { border: 'none' },
-              '& .cs-message--incoming .cs-message__content': {
-                backgroundColor: '#fce4ec',
-              },
-              '& .cs-message--outgoing .cs-message__content': {
-                backgroundColor: '#e91e63',
-                color: '#fff',
-              },
-              '& .cs-button--send': {
-                backgroundColor: '#e91e63',
-              },
-            }}
-          >
+          <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             {!materialsLoaded ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
                 <CircularProgress size={32} />
               </Box>
             ) : (
-              <MainContainer>
-                <ChatContainer>
-                  <MessageList
-                    typingIndicator={isTyping ? <TypingIndicator content="Escribiendo..." /> : undefined}
-                  >
-                    {messages.map((msg, index) => (
-                      <Message
-                        key={index}
-                        model={{
-                          message: msg.content,
-                          sentTime: 'ahora',
-                          sender: msg.role === 'user' ? 'Tú' : 'Asistente',
-                          direction: msg.role === 'user' ? 'outgoing' : 'incoming',
-                          position: 'single',
-                        }}
-                      />
-                    ))}
-                  </MessageList>
-                  <MessageInput
-                    placeholder="Describe el mueble que quieres cotizar..."
-                    onSend={handleSend}
-                    attachButton={false}
-                    disabled={isTyping}
-                  />
-                </ChatContainer>
-              </MainContainer>
+              <>
+                <Box sx={{ flex: 1, overflowY: 'auto', py: 1 }}>
+                  {messages.map((msg, index) => (
+                    <MessageBubble key={index} message={msg} />
+                  ))}
+                  {isTyping && (
+                    <Box sx={{ px: 2, py: 0.5 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        Escribiendo...
+                      </Typography>
+                    </Box>
+                  )}
+                  <div ref={messagesEndRef} />
+                </Box>
+
+                <AiChatInput
+                  disabled={isTyping}
+                  pendingPreview={pendingPreview}
+                  onSend={handleSend}
+                  onAttach={handleAttach}
+                  onClearAttachment={clearAttachment}
+                />
+              </>
             )}
           </Box>
         </Paper>

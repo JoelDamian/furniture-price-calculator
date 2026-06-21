@@ -2,13 +2,20 @@ import { getAI, getGenerativeModel, GoogleAIBackend, ChatSession } from 'firebas
 import { app } from '../config/firebase';
 import { MaterialItem } from '../models/Interfaces';
 import { formatMaterialesList, ChatMessage } from '../utils/cotizacionAiUtils';
+import { ChatMessageImage, fileToGenerativePart } from '../utils/aiImageUtils';
 
 export type { ChatMessage };
 
 const SYSTEM_INSTRUCTION = `Eres un asistente experto en cotización de muebles de melamina para un taller de carpintería.
 Ayudas al usuario a crear una cotización rápida conversando en español.
 
-Información requerida:
+Puedes recibir FOTOS de muebles. Al analizar una imagen:
+- Identifica el tipo de mueble (estante, gabinete, repisa, closet, etc.)
+- Estima dimensiones aproximadas si el usuario no las da (pregunta para confirmar)
+- Sugiere material acorde a lo visible
+- Propón un nombre descriptivo para la cotización
+
+Información requerida para cotizar:
 1. Nombre de la cotización
 2. Tipo de mueble: "estante" o "gabinete"
 3. Dimensiones en METROS: ancho (frente), alto (altura vertical), profundidad (desde la pared hacia afuera)
@@ -17,6 +24,7 @@ Información requerida:
 
 Reglas CRÍTICAS:
 - LEE TODO el historial de la conversación. NUNCA vuelvas a preguntar datos que el usuario ya dio.
+- Si el usuario envió una imagen, descríbrela brevemente y usa esa información para la cotización.
 - Si el usuario dijo "largo" refiriéndose a la altura, interpreta "largo" como "alto".
 - Si ya tienes nombre, tipo, las 3 dimensiones y material confirmados, NO hagas más preguntas.
 - En ese caso responde confirmando el resumen y agrega el bloque [QUOTE_READY] al final.
@@ -30,6 +38,15 @@ Cuando tengas TODA la información, responde con un resumen amigable y este bloq
 [/QUOTE_READY]`;
 
 const AI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-lite'] as const;
+
+type GeminiPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } };
+
+type GeminiHistoryEntry = {
+  role: 'user' | 'model';
+  parts: GeminiPart[];
+};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -57,11 +74,6 @@ const toUserFriendlyError = (error: unknown): string => {
   return message || 'Error al comunicarse con la IA.';
 };
 
-type GeminiHistoryEntry = {
-  role: 'user' | 'model';
-  parts: [{ text: string }];
-};
-
 let chatSession: ChatSession | null = null;
 let sessionMaterialesKey = '';
 let activeModel: (typeof AI_MODELS)[number] = AI_MODELS[0];
@@ -72,14 +84,39 @@ const buildSystemInstruction = (materiales: MaterialItem[]) => {
 Materiales disponibles en el sistema: ${formatMaterialesList(materiales)}`;
 };
 
+const buildMessageParts = (message: ChatMessage): GeminiPart[] => {
+  const parts: GeminiPart[] = [];
+  if (message.content.trim()) {
+    parts.push({ text: message.content });
+  }
+  if (message.image) {
+    parts.push(fileToGenerativePart(message.image));
+  }
+  if (parts.length === 0) {
+    parts.push({ text: ' ' });
+  }
+  return parts;
+};
+
 const buildGeminiHistory = (priorMessages: ChatMessage[]): GeminiHistoryEntry[] => {
   const firstUserIndex = priorMessages.findIndex((message) => message.role === 'user');
   if (firstUserIndex === -1) return [];
 
   return priorMessages.slice(firstUserIndex).map((message) => ({
     role: message.role === 'user' ? 'user' : 'model',
-    parts: [{ text: message.content }],
+    parts: buildMessageParts(message),
   }));
+};
+
+const buildSendRequest = (userMessage: string, image?: ChatMessageImage) => {
+  const text =
+    userMessage.trim() ||
+    'Analiza esta imagen del mueble e indícame qué datos necesitas para cotizarlo en melamina.';
+
+  if (image) {
+    return [text, fileToGenerativePart(image)] as [string, ReturnType<typeof fileToGenerativePart>];
+  }
+  return text;
 };
 
 const invalidateChatSession = () => {
@@ -124,7 +161,8 @@ export const resetAiChat = () => {
 export const sendAiMessage = async (
   userMessage: string,
   materiales: MaterialItem[],
-  priorMessages: ChatMessage[] = []
+  priorMessages: ChatMessage[] = [],
+  image?: ChatMessageImage
 ): Promise<string> => {
   let lastError: unknown;
   const startModelIndex = AI_MODELS.indexOf(activeModel);
@@ -141,7 +179,7 @@ export const sendAiMessage = async (
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const session = getChatSession(materiales, priorMessages);
-        const result = await session.sendMessage(userMessage);
+        const result = await session.sendMessage(buildSendRequest(userMessage, image));
         const text = result.response.text();
 
         if (!text) {
@@ -175,8 +213,9 @@ export const getWelcomeMessage = (materiales: MaterialItem[]): string => {
   const materialesText = formatMaterialesList(materiales);
   return `¡Hola! Soy tu asistente para cotizaciones rápidas de muebles de melamina.
 
-Puedo ayudarte a armar una cotización describiendo el mueble que necesitas. Por ejemplo:
-"Quiero un estante de 1.2m de ancho, 2m de alto y 40cm de profundidad en melamina blanca con 3 repisas"
+Puedo ayudarte de dos formas:
+• Describe el mueble: "Estante de 1.2m de ancho, 2m de alto y 40cm de profundidad en melamina blanca"
+• Envía una foto del mueble (botón de imagen) y te preguntaré solo lo que falte para cotizar
 
 Materiales disponibles: ${materialesText}
 

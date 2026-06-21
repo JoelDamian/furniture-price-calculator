@@ -1,8 +1,10 @@
 import { Dimensiones, EstanteItem, MaterialItem } from '../models/Interfaces';
+import type { ChatMessageImage } from './aiImageUtils';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  image?: ChatMessageImage;
 }
 
 export type TipoMueble = 'estante' | 'gabinete';
