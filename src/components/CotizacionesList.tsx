@@ -23,9 +23,14 @@ import {
   Box,
   Alert,
   Snackbar,
+  IconButton,
+  CircularProgress,
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
+import { Cotizacion, MaterialItem } from '../models/Interfaces';
 import { fetchCotizaciones, deleteCotizacionInFirestore, saveCotizacion } from '../services/cotizacionService';
-import { getCotizacionImageUrl } from '../services/imageUploadService';
+import { getCotizacionImageUrl, getCotizacionImageFullUrl } from '../services/imageUploadService';
+import { resolveImageForFullscreen } from '../utils/pdfImageUtils';
 import { useCotizacionStore } from '../store/cotizacionStore';
 import { useAccessoryStore } from '../store/accessoryStore';
 import { useCotizacionGlobalStore } from '../store/finalCotizacion';
@@ -44,6 +49,7 @@ interface CotizacionRowProps {
   onDuplicate: (cotizacion: Cotizacion) => void;
   onOptimize: (cotizacion: Cotizacion) => void;
   onDelete: (cotizacion: Cotizacion) => void;
+  onImageClick: (cotizacion: Cotizacion) => void;
 }
 
 const CotizacionRow = memo(({ 
@@ -53,7 +59,8 @@ const CotizacionRow = memo(({
   onEdit, 
   onDuplicate,
   onOptimize, 
-  onDelete 
+  onDelete,
+  onImageClick,
 }: CotizacionRowProps) => (
   <TableRow>
     <TableCell>
@@ -67,6 +74,7 @@ const CotizacionRow = memo(({
         component="img"
         src={getCotizacionImageUrl(cotizacion.imagenUrl, cotizacion.imagenThumbnail)}
         alt={cotizacion.nombre}
+        onClick={() => onImageClick(cotizacion)}
         sx={{
           width: 56,
           height: 56,
@@ -75,6 +83,9 @@ const CotizacionRow = memo(({
           border: '1px solid',
           borderColor: 'divider',
           bgcolor: 'grey.100',
+          cursor: 'zoom-in',
+          transition: 'opacity 0.15s',
+          '&:hover': { opacity: 0.85 },
         }}
       />
     </TableCell>
@@ -128,6 +139,12 @@ export const CotizacionesList: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [recoverSnackbar, setRecoverSnackbar] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<{
+    src: string;
+    fallbackSrc: string;
+    alt: string;
+    loading: boolean;
+  } | null>(null);
 
   const loadCotizaciones = useCallback(async () => {
     const datos = await fetchCotizaciones();
@@ -170,6 +187,41 @@ export const CotizacionesList: React.FC = () => {
   const handleDeleteClick = useCallback((cotizacion: Cotizacion) => {
     setSelectedCotizacion(cotizacion);
     setOpen(true);
+  }, []);
+
+  const handleImageClick = useCallback((cotizacion: Cotizacion) => {
+    const fallbackSrc = getCotizacionImageUrl(cotizacion.imagenUrl, cotizacion.imagenThumbnail);
+    const initialSrc = getCotizacionImageFullUrl(cotizacion.imagenUrl, cotizacion.imagenThumbnail);
+
+    setImagePreview({
+      src: initialSrc,
+      fallbackSrc,
+      alt: cotizacion.nombre,
+      loading: !cotizacion.imagenThumbnail && !!cotizacion.imagenUrl,
+    });
+
+    if (!cotizacion.imagenThumbnail && cotizacion.imagenUrl) {
+      resolveImageForFullscreen(cotizacion.imagenUrl, cotizacion.imagenThumbnail).then(
+        (resolved) => {
+          setImagePreview((prev) =>
+            prev?.alt === cotizacion.nombre
+              ? { ...prev, src: resolved || prev.fallbackSrc, loading: false }
+              : prev
+          );
+        }
+      );
+    }
+  }, []);
+
+  const handleCloseImagePreview = useCallback(() => {
+    setImagePreview(null);
+  }, []);
+
+  const handlePreviewImageError = useCallback(() => {
+    setImagePreview((prev) => {
+      if (!prev || prev.src === prev.fallbackSrc) return prev;
+      return { ...prev, src: prev.fallbackSrc, loading: false };
+    });
   }, []);
 
   const handleDuplicateRequest = useCallback((cotizacion: Cotizacion) => {
@@ -431,9 +483,10 @@ export const CotizacionesList: React.FC = () => {
         onDuplicate={handleDuplicateRequest}
         onOptimize={handleOptimizarClick}
         onDelete={handleDeleteClick}
+        onImageClick={handleImageClick}
       />
     ))
-  , [filteredCotizaciones, selectedRows, toggleSelect, handleRowClick, handleDuplicateRequest, handleOptimizarClick, handleDeleteClick]);
+  , [filteredCotizaciones, selectedRows, toggleSelect, handleRowClick, handleDuplicateRequest, handleOptimizarClick, handleDeleteClick, handleImageClick]);
 
   return (
     <Container sx={{ py: 4 }}>
@@ -540,6 +593,63 @@ export const CotizacionesList: React.FC = () => {
           {recoverSnackbar}
         </Alert>
       </Snackbar>
+
+      <Dialog
+        open={!!imagePreview}
+        onClose={handleCloseImagePreview}
+        fullScreen
+        slotProps={{
+          paper: {
+            sx: { bgcolor: 'black', m: 0 },
+          },
+        }}
+      >
+        <IconButton
+          onClick={handleCloseImagePreview}
+          aria-label="Cerrar vista previa"
+          sx={{
+            position: 'absolute',
+            top: 16,
+            right: 16,
+            zIndex: 1,
+            color: 'white',
+            bgcolor: 'rgba(0,0,0,0.5)',
+            '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' },
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
+        <DialogContent
+          onClick={handleCloseImagePreview}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 2,
+            height: '100%',
+            cursor: 'zoom-out',
+          }}
+        >
+          {imagePreview?.loading && (
+            <CircularProgress sx={{ position: 'absolute', color: 'white' }} />
+          )}
+          {imagePreview && !imagePreview.loading && (
+            <Box
+              component="img"
+              src={imagePreview.src}
+              alt={imagePreview.alt}
+              onError={handlePreviewImageError}
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                objectFit: 'contain',
+                cursor: 'default',
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Container>
   );
 };

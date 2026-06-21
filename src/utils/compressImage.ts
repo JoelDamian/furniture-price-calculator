@@ -1,4 +1,4 @@
-const THUMB_MAX = 400;
+const THUMB_MAX = 1200;
 const THUMB_QUALITY = 0.75;
 
 const blobToDataUrl = (blob: Blob): Promise<string> =>

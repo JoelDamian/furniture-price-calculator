@@ -45,6 +45,27 @@ export const resolveImageForPdf = async (
   return fetchImageAsDataUrl(imagenUrl);
 };
 
+/** Imagen embebible para vista a pantalla completa (evita CORS de Drive) */
+export const resolveImageForFullscreen = async (
+  imagenUrl?: string,
+  imagenThumbnail?: string
+): Promise<string> => {
+  if (imagenThumbnail) return imagenThumbnail;
+  if (!imagenUrl) return '';
+
+  const fileId = extractDriveFileId(imagenUrl);
+  if (fileId) {
+    const proxyUrl = import.meta.env.DEV ? `/api/drive-image?id=${fileId}` : null;
+    if (proxyUrl) {
+      const dataUrl = await fetchImageAsDataUrl(proxyUrl);
+      if (dataUrl) return dataUrl;
+    }
+  }
+
+  const dataUrl = await fetchImageAsDataUrl(imagenUrl);
+  return dataUrl || imagenUrl;
+};
+
 /** URL preferida para mostrar en UI (miniatura local si Drive falla) */
 export const getDisplayImageUrl = (
   imagenUrl?: string,

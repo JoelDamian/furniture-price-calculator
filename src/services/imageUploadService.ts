@@ -196,3 +196,10 @@ export const getCotizacionImageUrl = (imagenUrl?: string, imagenThumbnail?: stri
   if (imagenUrl) return normalizeDriveImageUrl(imagenUrl);
   return DEFAULT_COTIZACION_IMAGE;
 };
+
+/** URL para vista previa a pantalla completa (sin depender de CORS de Drive) */
+export const getCotizacionImageFullUrl = (imagenUrl?: string, imagenThumbnail?: string): string => {
+  if (imagenThumbnail) return imagenThumbnail;
+  if (imagenUrl) return normalizeDriveImageUrl(imagenUrl);
+  return DEFAULT_COTIZACION_IMAGE;
+};
